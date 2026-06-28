@@ -1,0 +1,45 @@
+schema_version: 1
+phase: Phase1
+
+features:
+  SEC-P1-002:
+    batches:
+      - id: 1
+        files:
+          - src/lib/products-admin.functions.ts
+          - src/lib/orders.server.ts
+      - id: 2
+        files:
+          - src/routes/profile.tsx
+          - src/routes/admin-dashboard.tsx
+      - id: 3
+        files:
+          - src/routes/settings.tsx
+          - src/lib/analytics.server.ts
+          - src/lib/reports.ts
+      - id: 4
+        files:
+          - src/lib/example.functions.ts
+          - src/lib/another.functions.ts
+          - src/lib/config.functions.ts
+          - src/lib/user.functions.ts
+          - src/lib/product.functions.ts
+
+  SEC-P1-003:
+    batches:
+      - id: 1
+        files:
+          - src/middleware/cron-auth.ts (CREATE)
+          - src/routes/api/public/hooks/*.ts (UPDATE)
+
+  SEC-P1-004:
+    batches:
+      - id: 1
+        files:
+          - src/routes/auth.tsx (REPLACE)
+
+  SEC-P1-005:
+    batches:
+      - id: 1
+        files:
+          - supabase/migrations/20260101000000_fix_security_definer.sql (APPLY)
