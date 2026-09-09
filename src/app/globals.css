@@ -1,4 +1,32 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
-body { font-family: Arial, sans-serif; background: #f7f8fa; color: #172033; }
+body { font-family: Arial, sans-serif; background: #f4f6f8; color: #172033; }
 button, input { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+
+.shell { max-width: 1120px; margin: 0 auto; padding: 48px 20px 72px; }
+.hero { padding: 8px 4px 30px; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; opacity: .55; }
+.hero h1 { margin: 8px 0; font-size: clamp(42px, 8vw, 68px); line-height: 1; }
+.hero p { margin: 0; font-size: 19px; opacity: .72; }
+.command-card { background: #fff; border: 1px solid #e5e9ef; border-radius: 22px; padding: 24px; box-shadow: 0 10px 30px rgba(23,32,51,.06); }
+.command-card h2 { margin: 0 0 8px; font-size: 23px; }
+.muted { margin: 0 0 18px; opacity: .62; }
+.command-row { display: flex; gap: 10px; }
+.command-row input { flex: 1; min-width: 0; padding: 15px 16px; border: 1px solid #d7dce4; border-radius: 13px; outline: none; background: #fbfcfd; }
+.command-row input:focus { border-color: #8b95a7; }
+.command-row button { border: 0; border-radius: 13px; padding: 0 22px; cursor: pointer; background: #172033; color: #fff; }
+.command-row button:disabled { opacity: .4; cursor: not-allowed; }
+.result { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #f1f4f7; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 18px; }
+.card { text-align: right; border: 1px solid #e5e9ef; border-radius: 18px; padding: 20px; background: #fff; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(23,32,51,.08); }
+.card-title, .card-description { display: block; }
+.card-title { font-weight: 700; font-size: 18px; margin-bottom: 7px; }
+.card-description { opacity: .65; line-height: 1.5; }
+
+@media (max-width: 620px) {
+  .shell { padding: 28px 14px 48px; }
+  .command-row { flex-direction: column; }
+  .command-row button { min-height: 48px; }
+}
