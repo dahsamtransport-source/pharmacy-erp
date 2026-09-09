@@ -80,12 +80,13 @@ export async function orchestrateBusinessRequest(input: string) {
   }
 
   const result = await run(mawsilAgent, normalized, { maxTurns: 6 });
+  const interruptions = result.interruptions ?? [];
 
   return {
     output: result.finalOutput,
     intent: classifyBusinessIntent(normalized),
-    requiresApproval: result.interruptions.length > 0,
-    interruptions: result.interruptions.map((item) => ({
+    requiresApproval: interruptions.length > 0,
+    interruptions: interruptions.map((item) => ({
       name: item.name,
       arguments: item.arguments,
     })),
