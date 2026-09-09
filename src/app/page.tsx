@@ -1,39 +1,80 @@
-const cards = [
-  ['المبيعات', 'ابدأ تسجيل عملية بيع'],
-  ['المخزون', 'راجع الأصناف والكميات'],
-  ['الديون', 'تابع العملاء والمديونيات'],
-  ['الموردون', 'تابع المشتريات والموردين'],
+'use client';
+
+import { useMemo, useState } from 'react';
+import { classifyBusinessIntent, type BusinessIntent } from '@/lib/ai/orchestrator';
+
+const cards: Array<{ title: string; description: string; intent: BusinessIntent }> = [
+  { title: 'المبيعات', description: 'سجل البيع والطلبات بسرعة.', intent: 'sales' },
+  { title: 'المخزون', description: 'اعرف الكميات والنواقص.', intent: 'inventory' },
+  { title: 'الديون', description: 'تابع العملاء والمديونيات.', intent: 'debts' },
+  { title: 'الموردون', description: 'تابع التوريد والمشتريات.', intent: 'suppliers' },
+  { title: 'التحليلات', description: 'راجع الأرباح والمبيعات.', intent: 'analytics' },
 ];
 
+const labels: Record<BusinessIntent, string> = {
+  sales: 'المبيعات',
+  inventory: 'المخزون',
+  debts: 'الديون',
+  suppliers: 'الموردون',
+  analytics: 'التحليلات',
+  unknown: 'غير محدد',
+};
+
 export default function HomePage() {
+  const [input, setInput] = useState('');
+  const [result, setResult] = useState<BusinessIntent | null>(null);
+  const intent = useMemo(() => classifyBusinessIntent(input), [input]);
+
+  function execute() {
+    setResult(intent);
+  }
+
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: 32 }}>
-      <header style={{ marginBottom: 32 }}>
-        <p style={{ margin: 0, opacity: 0.65 }}>Mawsil AI Business OS</p>
-        <h1 style={{ fontSize: 40, margin: '8px 0' }}>مرحباً بك في موصل</h1>
-        <p style={{ fontSize: 18, margin: 0 }}>أدر تجارتك بالكلام، بسرعة وببساطة.</p>
+    <main className="shell">
+      <header className="hero">
+        <span className="eyebrow">MAWSIL AI BUSINESS OS</span>
+        <h1>موصل</h1>
+        <p>مساعدك الذكي لإدارة تجارتك من الكلام إلى الفعل.</p>
       </header>
 
-      <section style={{ background: 'white', padding: 24, borderRadius: 18, marginBottom: 24 }}>
-        <h2 style={{ marginTop: 0 }}>ماذا تريد أن تفعل؟</h2>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <section className="command-card" aria-labelledby="command-title">
+        <h2 id="command-title">قل لموصل ماذا تريد</h2>
+        <p className="muted">مثال: سجل أن محمد أخذ 5 كراتين مياه بالدين</p>
+        <div className="command-row">
           <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') execute();
+            }}
             aria-label="أمر موصل"
-            placeholder="مثال: سجل أن محمد أخذ 5 كراتين مياه بالدين"
-            style={{ flex: 1, minWidth: 280, padding: 16, border: '1px solid #d9dde5', borderRadius: 12 }}
+            placeholder="اكتب أمرًا تجاريًا..."
           />
-          <button style={{ padding: '12px 22px', border: 0, borderRadius: 12, cursor: 'pointer' }}>
+          <button type="button" onClick={execute} disabled={!input.trim()}>
             نفّذ
           </button>
         </div>
+        {result && (
+          <div className="result" role="status">
+            <strong>القسم المقترح:</strong> {labels[result]}
+          </div>
+        )}
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 16 }}>
-        {cards.map(([title, description]) => (
-          <article key={title} style={{ background: 'white', padding: 22, borderRadius: 16 }}>
-            <h3>{title}</h3>
-            <p style={{ opacity: 0.7 }}>{description}</p>
-          </article>
+      <section className="cards" aria-label="أقسام موصل">
+        {cards.map((card) => (
+          <button
+            className="card"
+            key={card.intent}
+            type="button"
+            onClick={() => {
+              setInput('');
+              setResult(card.intent);
+            }}
+          >
+            <span className="card-title">{card.title}</span>
+            <span className="card-description">{card.description}</span>
+          </button>
         ))}
       </section>
     </main>
