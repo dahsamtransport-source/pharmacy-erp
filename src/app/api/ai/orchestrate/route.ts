@@ -3,14 +3,38 @@ import { orchestrateBusinessRequest } from '@/lib/ai/orchestrator';
 
 export const runtime = 'nodejs';
 
+const MAX_INPUT_LENGTH = 4000;
+
+function isAuthorized(request: Request) {
+  const expected = process.env.MAWSIL_AI_INTERNAL_TOKEN;
+  if (!expected) return false;
+
+  const authorization = request.headers.get('authorization');
+  return authorization === `Bearer ${expected}`;
+}
+
 export async function POST(request: Request) {
   try {
+    if (!isAuthorized(request)) {
+      return NextResponse.json(
+        { error: 'UNAUTHORIZED' },
+        { status: 401 },
+      );
+    }
+
     const body = (await request.json()) as { input?: unknown };
 
     if (typeof body.input !== 'string' || !body.input.trim()) {
       return NextResponse.json(
         { error: 'INPUT_REQUIRED' },
         { status: 400 },
+      );
+    }
+
+    if (body.input.length > MAX_INPUT_LENGTH) {
+      return NextResponse.json(
+        { error: 'INPUT_TOO_LARGE' },
+        { status: 413 },
       );
     }
 
