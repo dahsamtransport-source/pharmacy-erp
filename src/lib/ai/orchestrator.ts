@@ -52,6 +52,7 @@ const prepareTransaction = tool({
 
 export const mawsilAgent = new Agent({
   name: 'Mawsil Transaction Orchestrator',
+  model: 'gpt-6-astra',
   instructions: `
 أنت طبقة orchestration الآمنة لمنظومة موصل.
 
@@ -63,7 +64,8 @@ export const mawsilAgent = new Agent({
 5. عند وجود غموض في الاسم أو الكمية أو العملة، لا تخمّن؛ اجعل الخطة غير تنفيذية واذكر الغموض.
 6. التقارير والقراءة يمكن أن تكون منخفضة المخاطر، لكن لا تخترع بيانات غير متاحة.
 7. استخدم أداة prepare_transaction فقط لتحويل العملية إلى خطة منظمة؛ الأداة لا تنفذ أي mutation.
-8. أجب بالعربية وبشكل مختصر وواضح.
+8. لا تطلب أو تعرض أسرارًا أو مفاتيح أو رموز جلسات.
+9. أجب بالعربية وبشكل مختصر وواضح.
 `,
   tools: [prepareTransaction],
   outputType: TransactionPlan,
@@ -90,6 +92,5 @@ export async function orchestrateBusinessRequest(input: string) {
       name: item.name,
       arguments: item.arguments,
     })),
-    state: result.state.toString(),
   };
 }
