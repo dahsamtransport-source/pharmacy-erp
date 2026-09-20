@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { canAttemptDataRequest } from "@/lib/pharmacy/connectivity";
 export function useRemote<T>(load: () => Promise<T> | null, identity: string) {
   const [revision, setRevision] = useState(0);
   const key = `${identity}:${revision}`;
@@ -39,8 +40,4 @@ const subscribe = (cb: () => void) => {
   };
 };
 export const useOnline = () =>
-  useSyncExternalStore(
-    subscribe,
-    () => navigator.onLine,
-    () => true,
-  );
+  useSyncExternalStore(subscribe, canAttemptDataRequest, () => true);
