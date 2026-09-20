@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { isLoopbackDataApi } from "./connectivity";
+import { ledgerSchema } from "./ledger";
 import { z } from "zod";
 import { centerSchema, financialStatementSchema } from "./financial";
 import {
@@ -23,6 +24,9 @@ export class ApiFailure extends Error {
   }
 }
 const messages: Record<string, string> = {
+  LEDGER_RANGE_TOO_LARGE:
+    "تجاوز الكشف 1000 قيد. اختر فترة أقصر أو مركز تكلفة محددًا؛ لم تُحذف أي حركات من النتيجة.",
+  LEDGER_ACCOUNT_UNAVAILABLE: "الحساب غير متاح ضمن المنشأة الحالية.",
   REPORT_ACCOUNT_MAPPING_REQUIRED:
     "تحتاج التقارير إلى ربط صحيح لحساب تكلفة المبيعات. راجع المحاسب.",
   INVALID_REPORT_PERIOD:
@@ -156,6 +160,24 @@ export function pharmacyApi(client: SupabaseClient<Database>): PharmacyApi {
       read(
         api.rpc("financial_report_options", { p_org }),
         z.array(centerSchema),
+      ),
+    ledger: (p_org, p_account, range) =>
+      read(
+        api.rpc("account_ledger", {
+          p_org,
+          p_account,
+          p_from: range.from,
+          p_to: range.to,
+          p_center: range.center,
+        }),
+        ledgerSchema.refine(
+          (r) =>
+            r.org_id === p_org &&
+            r.account.id === p_account &&
+            r.from === range.from &&
+            r.to === range.to &&
+            r.center_id === range.center,
+        ),
       ),
     statement: (p_org, range) =>
       read(

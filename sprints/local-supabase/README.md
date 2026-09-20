@@ -9,7 +9,7 @@
 افتح PowerShell. للحصول على نسخة مستقلة من هذا الفرع:
 
 ```powershell
-git clone --branch tooling/local-supabase https://github.com/dahsamtransport-source/pharmacy-erp.git ympharma-local
+git clone --branch delivery/readiness-and-ledger https://github.com/dahsamtransport-source/pharmacy-erp.git ympharma-local
 cd ympharma-local
 npm ci
 npm ci --prefix sprints/01-database --ignore-scripts
@@ -54,7 +54,7 @@ notepad .local\training-accounts.json
 | `npm run local:smoke` | 25 تحققًا عبر Auth وPostgREST الفعليين: الدخول، العضوية، أدوار التقارير، وحجب مخطط التكلفة |
 | `npm run local:migrate` | تطبيق ملفات الترحيل الجديدة محليًا دون حذف البيانات |
 | `npm run local:stop` | إيقاف هذا المشروع فقط مع الاحتفاظ بالبيانات |
-| `npm run local:test-db` | إنشاء PostgreSQL 16 مؤقت مستقل، وتشغيل 54 اختبار SQL/RLS و8 اختبارات تزامن، ثم إزالته |
+| `npm run local:test-db` | إنشاء PostgreSQL 16 مؤقت مستقل، وتشغيل 60 اختبار SQL/RLS و8 اختبارات تزامن، ثم إزالته |
 | `npm run test:local-tools` | اختبارات حواجز الأمان والتدريب المحلية التي لا تتطلب Docker |
 
 أمر `local:test-db` يستخدم منفذًا عشوائيًا مربوطًا بـ127.0.0.1 وقاعدة `ympharma_test` وكلمة مرور مؤقتة. لا يستخدم قاعدة Supabase التي تعمل عليها. يحتاج تنزيل صورة `postgres:16` أول مرة. عند انقطاع قسري للجهاز تحقق من الحاويات التي تحمل الوسم `com.ympharma.disposable-test=true`؛ لا تحذف حاويات أخرى.
@@ -63,7 +63,7 @@ notepad .local\training-accounts.json
 
 `local:start` و`local:stop` لا يحذفان بياناتك. لا تستخدم `supabase stop --no-backup`. لا تدمج ملفات SQL في ملف واحد جديد، ولا تشغّل `supabase init` في جذر هذا المستودع: يوجد هناك مخطط تاريخي مختلف.
 
-المسار المعزول هو `sprints/01-database/supabase`، ويستخدم ملفات الترحيل الخمسة الموجودة بترتيب أسمائها. لم ننسخها أو نعدّلها. **لا تشغّل محاكي `tests/harness.mjs` على قاعدة Supabase**: هو يستبدل `auth.uid()` داخل قواعد الاختبار المؤقتة فقط.
+المسار المعزول هو `sprints/01-database/supabase`، ويستخدم ملفات الترحيل الستة الموجودة بترتيب أسمائها، ومنها إضافة دفتر الأستاذ. بقيت الهجرات السابقة دون تغيير. **لا تشغّل محاكي `tests/harness.mjs` على قاعدة Supabase**: هو يستبدل `auth.uid()` داخل قواعد الاختبار المؤقتة فقط.
 
 لإتلاف بيانات التدريب وإعادة البداية عمدًا، أوقف الواجهة أولًا ثم نفّذ:
 

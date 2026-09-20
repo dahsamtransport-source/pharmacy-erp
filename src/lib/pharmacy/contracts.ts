@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AccountLedger } from "./ledger";
 import { timezoneSchema } from "./financial";
 import type { CostCenter, FinancialStatement, ReportRange } from "./financial";
 export const roleSchema = z.enum([
@@ -156,6 +157,13 @@ export interface Database {
       receipt_by_request: Read<{ p_org: string; p_request: string }>;
       financial_report: Read<{ p_org: string; p_from: string; p_to: string }>;
       financial_report_options: Read<{ p_org: string }>;
+      account_ledger: Read<{
+        p_org: string;
+        p_account: string;
+        p_from: string;
+        p_to: string;
+        p_center: string | null;
+      }>;
       financial_report_v2: Read<{
         p_org: string;
         p_from: string;
@@ -225,6 +233,11 @@ export interface PharmacyApi {
   report(org: string, from: string, to: string): Promise<FinancialReport>;
   reportOptions(org: string): Promise<CostCenter[]>;
   statement(org: string, range: ReportRange): Promise<FinancialStatement>;
+  ledger(
+    org: string,
+    account: string,
+    range: ReportRange,
+  ): Promise<AccountLedger>;
   sell(org: string, request: string, input: SaleInput): Promise<string>;
   purchase(org: string, request: string, input: PurchaseInput): Promise<string>;
 }
