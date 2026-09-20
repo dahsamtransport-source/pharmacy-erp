@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isLoopbackDataApi } from "./connectivity";
 import { z } from "zod";
 import { centerSchema, financialStatementSchema } from "./financial";
 import {
@@ -106,7 +107,7 @@ export function browserClient(): SupabaseClient<Database> | null {
     const parsed = new URL(url);
     if (
       parsed.protocol !== "https:" &&
-      !["localhost", "127.0.0.1"].includes(parsed.hostname)
+      !(parsed.protocol === "http:" && isLoopbackDataApi(url))
     )
       return null;
   } catch {

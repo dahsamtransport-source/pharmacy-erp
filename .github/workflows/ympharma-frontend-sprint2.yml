@@ -4,6 +4,9 @@ on:
     paths:
       - 'src/**'
       - 'tests/frontend/**'
+      - 'tests/local/**'
+      - 'scripts/**'
+      - 'sprints/01-database/package*.json'
       - 'package*.json'
       - '*config*'
       - '.github/workflows/ympharma-frontend-sprint2.yml'
@@ -21,6 +24,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm ci --prefix sprints/01-database --ignore-scripts
+      - run: npm run test:local-tools
       - run: npm test
       - run: npm run lint
       - run: npm run build

@@ -29,6 +29,7 @@ import {
 import { friendlyError } from "@/lib/pharmacy/api";
 import { businessDateInZone } from "@/lib/pharmacy/financial";
 import { useRemote, useOnline } from "@/hooks/use-remote";
+import { isLoopbackDataApi } from "@/lib/pharmacy/connectivity";
 import { PharmacySession, usePharmacySession } from "./session";
 import { Dialog, ErrorBox } from "./ui";
 import { POS, PurchaseReceipt, ReceiptDialog } from "./workflows";
@@ -275,7 +276,11 @@ function WorkspaceApp() {
                   غير متصل بالإنترنت
                 </>
               ) : ready ? (
-                "متصل بمساحة العمل"
+                isLoopbackDataApi() ? (
+                  "جلسة محلية — اتصال البيانات حسب الطلب"
+                ) : (
+                  "متصل بمساحة العمل"
+                )
               ) : (
                 "مساحة العمل غير متصلة"
               )}

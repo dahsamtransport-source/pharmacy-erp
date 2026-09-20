@@ -7,6 +7,7 @@ YmPharma: Arabic pharmacy and accounting workspace. Sprint 2 adds the React UI o
 - [Financial reports (Sprint 5): setup and review](sprints/05-financial-reports/README.md)
 - [Financial reports verification](sprints/05-financial-reports/TEST_REPORT.md)
 - [Sprint 1 database baseline](sprints/01-database/README.md)
+- [Local Supabase on Docker — Windows/Linux setup](sprints/local-supabase/README.md)
 
 ```sh
 npm ci

@@ -9,7 +9,19 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:db": "npm test --prefix sprints/01-database"
+    "test:db": "npm test --prefix sprints/01-database",
+    "local:doctor": "node scripts/local-supabase.mjs doctor",
+    "local:start": "node scripts/local-supabase.mjs start",
+    "local:stop": "node scripts/local-supabase.mjs stop",
+    "local:status": "node scripts/local-supabase.mjs status",
+    "local:env": "node scripts/local-supabase.mjs env",
+    "local:seed": "node scripts/local-supabase.mjs seed",
+    "local:reset": "node scripts/local-supabase.mjs reset",
+    "local:migrate": "node scripts/local-supabase.mjs migrate",
+    "local:smoke": "node scripts/local-supabase.mjs smoke",
+    "local:test-db": "node scripts/local-postgres-tests.mjs",
+    "local:dev": "node scripts/local-supabase.mjs dev",
+    "test:local-tools": "node --test tests/local/*.test.mjs"
   },
   "dependencies": {
     "@fontsource/tajawal": "5.3.0",
@@ -32,6 +44,7 @@
     "eslint-config-next": "16.3.5",
     "jsdom": "30.1.0",
     "prettier": "3.9.8",
+    "supabase": "2.117.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vitest": "5.0.1"

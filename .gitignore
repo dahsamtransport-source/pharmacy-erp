@@ -5,3 +5,8 @@ node_modules/
 *.tsbuildinfo
 coverage/
 supabase/.temp/
+
+# Local review tooling (credentials and Docker state)
+.local/
+**/supabase/.temp/
+**/supabase/.branches/

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ApiFailure } from "./api";
+import { canAttemptDataRequest } from "./connectivity";
 import type {
   PharmacyApi,
   PurchaseInput,
@@ -44,7 +45,7 @@ export function createTransactions(
     if (busy) throw new ApiFailure("العملية قيد التنفيذ. انتظر النتيجة.");
     busy = true;
     try {
-      if (typeof navigator !== "undefined" && !navigator.onLine)
+      if (!canAttemptDataRequest())
         throw new ApiFailure(
           "أنت غير متصل. الترحيل يحتاج اتصالًا؛ السلة باقية في الصفحة.",
         );
