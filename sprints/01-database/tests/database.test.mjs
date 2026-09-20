@@ -238,3 +238,46 @@ test('34 DOCUMENT_UUID is globally unique, including another organization', asyn
  await assert.rejects(other.sale(1,{request}),/invoices_document_uuid_key/);
  assert.equal(Number(await scalar('select sum(quantity) from ym.batches where org_id=$1',[other.org])),3);
 });
+test('35 workspace context exposes only active memberships of the caller',async()=>{
+ const data=await db.user(f.cashier,()=>scalar('select ym_api.workspace_context()'));
+ assert.equal(data.length,1);assert.equal(data[0].role,'cashier');assert.equal(data[0].id,f.org);
+ const outsider=await db.user(f.outsider,()=>scalar('select ym_api.workspace_context()'));assert.deepEqual(outsider,[]);
+});
+test('36 dashboard cashier metrics cover their sales, not the manager sales',async()=>{
+ await f.purchase();await f.sale(2);await f.sale(3,{actor:f.manager});
+ const d=await db.user(f.cashier,()=>scalar('select ym_api.dashboard_snapshot($1,$2)',[f.org,f.warehouse]));
+ assert.equal(d.scope,'mine');assert.equal(Number(d.today_total),20);assert.equal(d.recent.length,1);
+ const all=await db.user(f.owner,()=>scalar('select ym_api.dashboard_snapshot($1,$2)',[f.org,f.warehouse]));assert.equal(Number(all.today_total),50);
+});
+test('37 catalog returns unit-specific availability without cost fields',async()=>{
+ await f.purchase();await f.reserve(3);
+ const units=await db.user(f.cashier,()=>scalar('select ym_api.search_units($1,$2,\'BOX\',0)',[f.org,f.warehouse]));
+ assert.equal(units.length,1);assert.equal(units[0].factor,10);assert.equal(units[0].available_base,17);
+ assert.equal('cost_price' in units[0],false);assert.equal('inventory_value' in units[0],false);
+ await assert.rejects(db.user(f.outsider,()=>scalar('select ym_api.search_units($1,$2)',[f.org,f.warehouse])),/FORBIDDEN/);
+});
+test('38 receipt lookup obeys invoice RLS; stable reference resolves a committed sale',async()=>{
+ await f.purchase();const request=uuid();const sale=await f.sale(2,{request});
+ const receipt=await db.user(f.cashier,()=>scalar('select ym_api.receipt_by_request($1,$2)',[f.org,request]));
+ assert.equal(receipt.id,sale);assert.equal(Number(receipt.total),20);assert.equal(receipt.lines.length,1);
+ const hidden=await f.sale(1,{actor:f.manager});
+ await assert.rejects(db.user(f.cashier,()=>scalar('select ym_api.invoice_receipt($1,$2)',[f.org,hidden])),/INVOICE_NOT_FOUND/);
+});
+test('39 financial read contract denies cashier and preserves exact decimal totals',async()=>{
+ await f.purchase();await f.sale(2);
+ await assert.rejects(db.user(f.cashier,()=>scalar('select ym_api.financial_report($1,current_date,current_date)',[f.org])),/FORBIDDEN/);
+ const r=await db.user(f.accountant,()=>scalar('select ym_api.financial_report($1,current_date,current_date)',[f.org]));
+ assert.equal(r.accounts.find(x=>x.code==='revenue').credit,'20.00');
+ assert.equal(r.accounts.find(x=>x.code==='cogs').debit,'8.00');
+});
+test('40 supplier options are restricted and invoker RPCs remain closed to anonymous',async()=>{
+ await assert.rejects(db.user(f.cashier,()=>scalar('select ym_api.supplier_options($1)',[f.org])),/FORBIDDEN/);
+ const suppliers=await db.user(f.inventory,()=>scalar('select ym_api.supplier_options($1)',[f.org]));assert.equal(suppliers.length,1);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_api.dashboard_snapshot(uuid,uuid)','execute')"),false);
+ assert.equal(await scalar("select prosecdef from pg_proc where oid='ym_api.dashboard_snapshot(uuid,uuid)'::regprocedure"),false);
+});
+test('41 inventory-role dashboard never synthesizes a sales zero or reads financial metrics',async()=>{
+ await f.purchase();await f.sale(2);
+ const d=await db.user(f.inventory,()=>scalar('select ym_api.dashboard_snapshot($1,$2)',[f.org,f.warehouse]));
+ assert.equal(d.today_total,null);assert.equal(d.yesterday_total,null);assert.ok(d.series.every(x=>x.total===null));
+});
