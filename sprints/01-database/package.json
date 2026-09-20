@@ -1,0 +1,13 @@
+{
+  "name": "ympharma-sprint1-database-review",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/database.test.mjs",
+    "test:postgres": "node tests/require-native.mjs && node --test --test-concurrency=1 tests/database.test.mjs tests/concurrency.test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "8.23.0"
+  }
+}

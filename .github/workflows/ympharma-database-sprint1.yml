@@ -1,0 +1,36 @@
+name: YmPharma database Sprint 1
+on:
+  pull_request:
+    paths:
+      - 'sprints/01-database/**'
+      - '.github/workflows/ympharma-database-sprint1.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ympharma_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - '127.0.0.1:5432:5432'
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ympharma_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sprints/01-database/package-lock.json
+      - run: npm ci --prefix sprints/01-database --ignore-scripts
+      - run: npm run test:postgres --prefix sprints/01-database
+        env:
+          YMPHARMA_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:5432/ympharma_test
+          YMPHARMA_DISPOSABLE_TEST_DB: 'yes'
