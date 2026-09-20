@@ -281,3 +281,100 @@ test('41 inventory-role dashboard never synthesizes a sales zero or reads financ
  const d=await db.user(f.inventory,()=>scalar('select ym_api.dashboard_snapshot($1,$2)',[f.org,f.warehouse]));
  assert.equal(d.today_total,null);assert.equal(d.yesterday_total,null);assert.ok(d.series.every(x=>x.total===null));
 });
+
+// Synthetic posted journal fixtures allow boundary dates without changing immutable real transactions.
+async function reportJournal({date='2026-01-15',debit=f.accounts.cash,credit=f.accounts.revenue,amount='10.00',center=f.center,currency='YER',beforePost}={}) {
+ const invoice=uuid(),journal=uuid(); await db.exec('begin');
+ try {
+  await db.query("insert into ym.periods values($1,date_trunc('month',$2::date)::date,false) on conflict do nothing",[f.org,date]);
+  await db.query("insert into ym.invoices(org_id,id,document_uuid,kind,warehouse_id,actor_id,currency,document_date,payment_method,total) values($1,$2,$3,'sale',$4,$5,$6,$7,'cash',$8)",[f.org,invoice,uuid(),f.warehouse,f.owner,currency,date,amount]);
+  await db.query("insert into ym.journals(org_id,id,invoice_id,document_date,period_month,currency,cost_center_id,description) values($1,$2,$3,$4,date_trunc('month',$4::date)::date,$5,$6,'Synthetic report fixture')",[f.org,journal,invoice,date,currency,center]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit,credit) values($1,$2,$3,$5,0),($1,$2,$4,0,$5)',[f.org,journal,debit,credit,amount]);
+  if(beforePost) {await db.query("select set_config('request.jwt.claim.sub',$1,true)",[f.accountant]);await beforePost();}
+  await db.query("update ym.journals set status='posted' where org_id=$1 and id=$2",[f.org,journal]);
+  await db.exec('commit');
+ } catch(e) {await db.exec('rollback');throw e;}
+ return journal;
+}
+const statement = (from='2026-01-01',to='2026-01-31',center=null,zero=false,actor=f.accountant,org=f.org) => db.user(actor,()=>scalar('select ym_api.financial_report_v2($1,$2,$3,$4,$5)',[org,from,to,center,zero]));
+test('42 financial statement reconciles real purchase, FEFO sale, COGS and normal balances',async()=>{
+ await f.purchase();await f.sale(3);
+ const today=await scalar('select current_date::text');const r=await statement(today,today);
+ assert.equal(r.income.revenue,'30.00');assert.equal(r.income.cost_of_sales,'12.00');assert.equal(r.income.net_income,'18.00');
+ assert.equal(r.totals.debit,'122.00');assert.equal(r.totals.credit,'122.00');assert.equal(r.totals.balanced,true);
+ assert.equal(r.posted_journal_count,2);assert.equal(r.accounts.find(a=>a.code==='payables').normal_balance,'80.00');
+});
+test('43 business-date boundaries include the last day, separate opening and exclude future entries',async()=>{
+ await reportJournal({date:'2025-12-31',amount:'100.00'});
+ await reportJournal({date:'2026-01-01',amount:'50.00'});
+ await reportJournal({date:'2026-01-31',debit:f.accounts.cogs,credit:f.accounts.cash,amount:'20.00'});
+ await reportJournal({date:'2026-02-01',amount:'999.00'});
+ const r=await statement();const cash=r.accounts.find(a=>a.code==='cash');
+ assert.equal(cash.opening,'100.00');assert.equal(cash.debit,'50.00');assert.equal(cash.credit,'20.00');assert.equal(cash.closing,'130.00');
+ assert.equal(r.income.revenue,'50.00');assert.equal(r.income.net_income,'30.00');assert.equal(r.posted_journal_count,2);
+ assert.equal(r.totals.opening_debit,'100.00');assert.equal(r.totals.closing_debit,'150.00');
+});
+test('44 an empty ledger is distinct from a completed balanced ledger; zero accounts are optional',async()=>{
+ const r=await statement();assert.equal(r.totals.has_data,false);assert.equal(r.accounts.length,0);assert.equal(r.posted_journal_count,0);
+ const all=await statement('2026-01-01','2026-01-31',null,true);assert.equal(all.accounts.length,7);assert.equal(all.totals.has_data,false);
+});
+test('45 financial RPCs deny non-finance roles and anonymous execution',async()=>{
+ for(const role of ['cashier','pharmacist','inventory','outsider']) {
+  await assert.rejects(statement('2026-01-01','2026-01-31',null,false,f[role]),/FORBIDDEN/);
+  await assert.rejects(db.user(f[role],()=>scalar('select ym_api.financial_report_options($1)',[f.org])),/FORBIDDEN/);
+ }
+ for(const fn of ['ym_api.financial_report_options(uuid)','ym_api.financial_report_v2(uuid,date,date,uuid,boolean)']) {
+  assert.equal(await scalar('select has_function_privilege(\'anon\',$1,\'execute\')',[fn]),false);
+  assert.equal(await scalar('select prosecdef from pg_proc where oid=$1::regprocedure',[fn]),false);
+ }
+});
+test('46 financial queries reject another organization and revoked memberships',async()=>{
+ const other=await fixture(db);
+ await assert.rejects(statement('2026-01-01','2026-01-31',null,false,f.owner,other.org),/FORBIDDEN/);
+ await db.query('update ym.members set active=false where org_id=$1 and user_id=$2',[f.org,f.accountant]);
+ await assert.rejects(statement(),/FORBIDDEN/);
+});
+test('47 cost-center filter scopes balances, income, opening and journal counts',async()=>{
+ const center=uuid();await db.query("insert into ym.cost_centers values($1,$2,'TRANSPORT','Transport')",[f.org,center]);
+ await reportJournal({amount:'10.00'});await reportJournal({amount:'90.00',center});
+ await reportJournal({amount:'50.00',center,date:'2025-12-31'});
+ const r=await statement('2026-01-01','2026-01-31',center);
+ assert.equal(r.cost_center.id,center);assert.equal(r.income.revenue,'90.00');assert.equal(r.totals.opening_debit,'50.00');assert.equal(r.posted_journal_count,1);
+ const centers=await db.user(f.manager,()=>scalar('select ym_api.financial_report_options($1)',[f.org]));assert.equal(centers.length,2);
+});
+test('48 invalid dates, excessive ranges, foreign center and null option are rejected',async()=>{
+ for(const [from,to] of [[null,'2026-01-01'],['2026-02-01','2026-01-01'],['2024-01-01','2026-01-01'],['2026-01-01','infinity']]) await assert.rejects(statement(from,to),/INVALID_REPORT_PERIOD/);
+ await assert.rejects(statement('2026-01-01','2026-01-31',uuid()),/INVALID_REPORT_CENTER/);
+ await assert.rejects(statement('2026-01-01','2026-01-31',null,null),/INVALID_REPORT_PERIOD/);
+});
+test('49 report keeps sub-cent-free precision beyond JavaScript safe minor-unit integers',async()=>{
+ await reportJournal({amount:'90071992547409.11'});await reportJournal({amount:'0.10'});await reportJournal({amount:'0.20'});
+ const r=await statement();assert.equal(r.totals.debit,'90071992547409.41');assert.equal(r.income.net_income,'90071992547409.41');
+});
+test('50 contra revenue and expense reversals retain the correct signs',async()=>{
+ await reportJournal({amount:'100.00'});await reportJournal({debit:f.accounts.revenue,credit:f.accounts.cash,amount:'120.00'});
+ await reportJournal({debit:f.accounts.cash,credit:f.accounts.cogs,amount:'5.00'});
+ const r=await statement();assert.equal(r.income.revenue,'-20.00');assert.equal(r.income.cost_of_sales,'-5.00');assert.equal(r.income.net_income,'-15.00');
+ assert.equal(r.accounts.find(a=>a.code==='revenue').normal_balance,'-20.00');
+});
+test('51 unposted in-flight journals never enter reports',async()=>{
+ await reportJournal({beforePost:async()=>{
+  const r=await scalar("select ym_api.financial_report_v2($1,'2026-01-01','2026-01-31')",[f.org]);
+  assert.equal(r.totals.has_data,false);assert.equal(r.posted_journal_count,0);
+ }});
+ assert.equal((await statement()).posted_journal_count,1);
+});
+test('52 mixed currencies are rejected instead of silently combined',async()=>{
+ await reportJournal({currency:'USD'});await assert.rejects(statement(),/REPORT_CURRENCY_MISMATCH/);
+});
+test('53 inactive accounts retain history; group accounts do not double count',async()=>{
+ await reportJournal();await db.query('update ym.accounts set active=false where org_id=$1 and id=$2',[f.org,f.accounts.revenue]);
+ await db.query("insert into ym.accounts(org_id,code,name,kind,postable) values($1,'GROUP','Parent','income',false)",[f.org]);
+ const r=await statement('2026-01-01','2026-01-31',null,true);assert.equal(r.income.revenue,'10.00');assert.ok(r.accounts.some(a=>a.id===f.accounts.revenue));assert.ok(!r.accounts.some(a=>a.code==='GROUP'));
+});
+test('54 missing or misclassified COGS mapping cannot generate misleading gross profit',async()=>{
+ await db.query("delete from ym.account_mappings where org_id=$1 and purpose='cogs'",[f.org]);
+ await assert.rejects(statement(),/REPORT_ACCOUNT_MAPPING_REQUIRED/);
+ await db.query("insert into ym.account_mappings values($1,'cogs',$2)",[f.org,f.accounts.cash]);
+ await assert.rejects(statement(),/REPORT_ACCOUNT_MAPPING_REQUIRED/);
+});

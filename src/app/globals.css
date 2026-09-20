@@ -1554,3 +1554,380 @@ tfoot th {
     border: 1px solid #aaa;
   }
 }
+
+/* Financial workspace: statement pages remain legible independently of app chrome. */
+.financial-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.financial-controls {
+  margin-bottom: 22px;
+}
+.financial-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 13px;
+  background: #f1f5f9;
+  width: fit-content;
+  margin-bottom: 22px;
+}
+.financial-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  padding: 11px 18px;
+  background: transparent;
+  color: #475569;
+  font-weight: 700;
+  cursor: pointer;
+}
+.financial-tabs button[aria-selected="true"] {
+  background: white;
+  color: #4338ca;
+  box-shadow: 0 2px 5px #0f172a0c;
+}
+.financial-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+.financial-filters .field {
+  flex: 1 1 155px;
+  margin: 0;
+}
+.financial-filters .field > span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.financial-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  min-height: 44px;
+}
+.financial-check input {
+  width: 17px;
+  height: 17px;
+  accent-color: #4f46e5;
+}
+.financial-dirty {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: #92400e;
+  font-size: 14px;
+  margin-top: 15px;
+}
+.financial-sheet {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 12px 35px #0f172a05;
+}
+.financial-report-head {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  border-bottom: 2px solid #1e293b;
+  padding-bottom: 22px;
+  margin-bottom: 20px;
+}
+.financial-company {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.financial-logo {
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+.financial-report-head h2 {
+  font-size: 21px;
+  margin: 0 0 7px;
+}
+.financial-report-head p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.financial-report-title {
+  text-align: end;
+}
+.financial-report-title h2 {
+  font-size: 25px;
+}
+.financial-metadata {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 25px;
+}
+.financial-metadata dt {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 5px;
+}
+.financial-metadata dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.financial-metadata small {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: #64748b;
+}
+.financial-empty {
+  padding: 15px;
+  color: #475569;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+.financial-table table {
+  min-width: 850px;
+  font-size: 13px;
+}
+.financial-table th {
+  white-space: normal;
+}
+.financial-table th[scope="row"] {
+  background: transparent;
+  color: #334155;
+  font-weight: 600;
+}
+.financial-table thead th {
+  text-align: center;
+  border: 1px solid #e2e8f0;
+  padding: 10px 8px;
+}
+.financial-table .money-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+  padding: 12px 9px;
+}
+.financial-table tfoot {
+  background: #eef2ff;
+  font-weight: 800;
+  border-top: 2px solid #818cf8;
+}
+.financial-balance {
+  padding: 14px;
+  margin-top: 20px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.financial-balance.balanced {
+  color: #047857;
+  background: #ecfdf5;
+}
+.financial-balance.unbalanced {
+  color: #be123c;
+  background: #fff1f2;
+}
+.income-statement {
+  max-width: 760px;
+  margin: 30px auto 0;
+}
+.income-group {
+  margin-bottom: 24px;
+}
+.income-group h3 {
+  border-bottom: 1px solid #cbd5e1;
+  padding-bottom: 12px;
+  font-size: 18px;
+}
+.income-row,
+.income-total,
+.income-gross {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 15px;
+  border-bottom: 1px solid #f1f5f9;
+  font-variant-numeric: tabular-nums;
+}
+.income-row small {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+.income-total {
+  background: #f8fafc;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+.income-gross {
+  border-block: 1px solid #c7d2fe;
+  background: #eef2ff;
+  margin-bottom: 24px;
+  border-radius: 10px;
+  color: #3730a3;
+}
+.income-net {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 25px;
+  border-radius: 16px;
+  margin-top: 30px;
+  color: white;
+}
+.income-net.profit {
+  background: #047857;
+}
+.income-net.loss {
+  background: #be123c;
+}
+.income-net > span {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.income-net > strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+.income-net small {
+  font-size: 14px;
+}
+.financial-footnote {
+  margin-top: 35px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+  color: #64748b;
+  font-size: 12px;
+}
+.print-signature {
+  display: none;
+}
+@media (max-width: 900px) {
+  .financial-metadata {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .financial-sheet {
+    padding: 18px 14px;
+    border-radius: 15px;
+  }
+  .financial-report-title {
+    text-align: start;
+  }
+  .financial-tabs {
+    width: 100%;
+  }
+  .financial-tabs button {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 8px;
+    font-size: 14px;
+  }
+  .financial-actions > button {
+    flex: 1;
+  }
+  .financial-check {
+    flex-basis: 100%;
+  }
+  .income-net {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 18px;
+  }
+  .income-net > strong {
+    font-size: 25px;
+  }
+}
+@media print {
+  @page financial-trial {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+  @page financial-income {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+  .financial-sheet[data-report="trial"] {
+    page: financial-trial;
+  }
+  .financial-sheet[data-report="income"] {
+    page: financial-income;
+  }
+  .financial-sheet {
+    border: 0;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+  }
+  .financial-report-head {
+    break-inside: avoid;
+  }
+  .financial-report-title h2 {
+    font-size: 19pt;
+  }
+  .financial-logo {
+    border: 1px solid black;
+    color: black;
+    background: white;
+  }
+  .financial-metadata {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    font-size: 10pt;
+  }
+  .financial-table table {
+    min-width: 0;
+    width: 100%;
+    font-size: 9pt;
+  }
+  .financial-table tfoot {
+    display: table-row-group;
+  }
+  .financial-table th,
+  .financial-table td {
+    padding: 7px 5px;
+  }
+  .financial-sheet * {
+    box-shadow: none !important;
+    color: black !important;
+  }
+  .financial-balance,
+  .income-net,
+  .income-gross,
+  .income-total,
+  .financial-empty {
+    background: white !important;
+    border: 1px solid #666;
+  }
+  .income-net {
+    break-inside: avoid;
+  }
+  .financial-footnote {
+    break-inside: avoid;
+  }
+  .print-signature {
+    display: block;
+    margin-top: 30px;
+  }
+}

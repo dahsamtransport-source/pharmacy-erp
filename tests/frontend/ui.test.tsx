@@ -143,6 +143,8 @@ it("cashier cannot load financial report data", () => {
     "للمالك والمدير والمحاسب",
   );
   expect(api.report).not.toHaveBeenCalled();
+  expect(api.statement).not.toHaveBeenCalled();
+  expect(api.reportOptions).not.toHaveBeenCalled();
 });
 it("purchase uses real supplier choices and no hardcoded supplier IDs", async () => {
   const api = apiFixture();
