@@ -378,3 +378,64 @@ test('54 missing or misclassified COGS mapping cannot generate misleading gross 
  await db.query("insert into ym.account_mappings values($1,'cogs',$2)",[f.org,f.accounts.cash]);
  await assert.rejects(statement(),/REPORT_ACCOUNT_MAPPING_REQUIRED/);
 });
+
+const ledger=(account=f.accounts.cash,from='2026-01-01',to='2026-01-31',center=null,actor=f.accountant,org=f.org)=>db.user(actor,()=>scalar('select ym_api.account_ledger($1,$2,$3,$4,$5)',[org,account,from,to,center]));
+test('55 ledger reconciles opening, debit, credit and running balances with trial balance',async()=>{
+ await reportJournal({date:'2025-12-31',amount:'100.00'});
+ await reportJournal({date:'2026-01-01',amount:'30.00'});
+ await reportJournal({date:'2026-01-31',amount:'20.00',debit:f.accounts.revenue,credit:f.accounts.cash});
+ await reportJournal({date:'2026-02-01',amount:'999.00'});
+ const r=await ledger();const row=(await statement()).accounts.find(a=>a.id===f.accounts.cash);
+ assert.equal(r.opening,row.opening);assert.equal(r.debit,row.debit);assert.equal(r.credit,row.credit);assert.equal(r.closing,row.closing);
+ assert.deepEqual(r.entries.map(e=>e.balance),['130.00','110.00']);assert.equal(r.count,2);
+ assert.ok(r.entries.every(e=>e.document_uuid&&e.journal_id));
+});
+test('56 ledger respects financial roles and organization scope',async()=>{
+ for(const role of ['cashier','pharmacist','inventory','outsider']) await assert.rejects(ledger(undefined,undefined,undefined,null,f[role]),/FORBIDDEN/);
+ for(const role of ['owner','manager','accountant']) assert.equal((await ledger(undefined,undefined,undefined,null,f[role])).count,0);
+ const other=await fixture(db);
+ await assert.rejects(ledger(other.accounts.cash),/LEDGER_ACCOUNT_UNAVAILABLE/);
+ await assert.rejects(ledger(undefined,undefined,undefined,other.center),/INVALID_REPORT_CENTER/);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_api.account_ledger(uuid,uuid,date,date,uuid)','execute')"),false);
+ assert.equal(await scalar("select prosecdef from pg_proc where oid='ym_api.account_ledger(uuid,uuid,date,date,uuid)'::regprocedure"),false);
+});
+test('57 ledger excludes unposted journals and honors center and date constraints',async()=>{
+ await reportJournal({beforePost:async()=>{assert.equal((await scalar('select ym_api.account_ledger($1,$2,$3,$4,null)',[f.org,f.accounts.cash,'2026-01-01','2026-01-31'])).count,0);}});
+ const center=uuid();await db.query("insert into ym.cost_centers values($1,$2,'LEDGER','Other')",[f.org,center]);
+ await reportJournal({center,amount:'7.00'});
+ assert.equal((await ledger(undefined,undefined,undefined,center)).debit,'7.00');
+ for(const [from,to] of [['2026-02-01','2026-01-01'],['2020-01-01','2026-01-01'],['infinity','infinity']]) await assert.rejects(ledger(undefined,from,to),/INVALID_REPORT_PERIOD/);
+});
+test('58 ledger handles inactive history, reversals, exact large amounts and currency isolation',async()=>{
+ await reportJournal({amount:'90071992547409.93',debit:f.accounts.revenue,credit:f.accounts.cash});
+ await db.query('update ym.accounts set active=false where org_id=$1 and id=$2',[f.org,f.accounts.cash]);
+ const r=await ledger();assert.equal(r.closing,'-90071992547409.93');assert.equal(r.entries[0].balance,r.closing);
+ await db.query('update ym.accounts set active=true where org_id=$1 and id=$2',[f.org,f.accounts.cash]);
+ await reportJournal({currency:'USD'});await assert.rejects(ledger(),/REPORT_CURRENCY_MISMATCH/);
+});
+test('59 empty ledger preserves opening balance without pretending there are period entries',async()=>{
+ await reportJournal({date:'2025-12-31',amount:'12.25'});
+ const r=await ledger();assert.equal(r.count,0);assert.deepEqual(r.entries,[]);assert.equal(r.opening,'12.25');assert.equal(r.closing,'12.25');
+});
+test('60 ledger rejects an oversized range instead of returning a truncated balance',async()=>{
+ // Set-based synthetic fixtures retain every journal/balance constraint.
+ await db.exec('begin');
+ try {
+  await db.query("insert into ym.periods values($1,'2026-01-01',false) on conflict do nothing",[f.org]);
+  await db.query(`with docs as (
+   insert into ym.invoices(org_id,document_uuid,kind,warehouse_id,actor_id,currency,document_date,payment_method,total)
+   select $1,gen_random_uuid(),'sale',$2,$3,'YER','2026-01-15','cash',0.01 from generate_series(1,1000)
+   returning id
+  ) insert into ym.journals(org_id,invoice_id,document_date,period_month,currency,cost_center_id,description)
+   select $1,id,'2026-01-15','2026-01-01','YER',$4,'Synthetic range fixture' from docs`,[f.org,f.warehouse,f.owner,f.center]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit,credit) select org_id,id,$2,0.01,0 from ym.journals where org_id=$1',[f.org,f.accounts.cash]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit,credit) select org_id,id,$2,0,0.01 from ym.journals where org_id=$1',[f.org,f.accounts.revenue]);
+  await db.query("update ym.journals set status='posted' where org_id=$1",[f.org]);
+  await db.exec('commit');
+ } catch(e) {await db.exec('rollback');throw e;}
+ // Refresh planner statistics explicitly after this test-only bulk load.
+ await db.exec('analyze ym.members; analyze ym.invoices; analyze ym.journals; analyze ym.journal_lines');
+ const r=await ledger();assert.equal(r.count,1000);assert.equal(r.closing,'10.00');
+ await reportJournal({amount:'0.01'});
+ await assert.rejects(ledger(),/LEDGER_RANGE_TOO_LARGE/);
+});
