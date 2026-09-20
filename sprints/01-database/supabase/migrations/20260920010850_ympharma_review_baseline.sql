@@ -3,10 +3,10 @@
 create schema ym;
 create schema ym_private;
 create schema ym_api;
-revoke all on schema ym, ym_private, ym_api from public, anon, authenticated;
-alter default privileges in schema ym revoke all on tables from public, anon, authenticated;
-alter default privileges in schema ym_private revoke execute on functions from public, anon, authenticated;
-alter default privileges in schema ym_api revoke execute on functions from public, anon, authenticated;
+revoke all on schema ym, ym_private, ym_api from public, anon, authenticated, service_role;
+alter default privileges in schema ym revoke all on tables from public, anon, authenticated, service_role;
+alter default privileges in schema ym_private revoke execute on functions from public, anon, authenticated, service_role;
+alter default privileges in schema ym_api revoke execute on functions from public, anon, authenticated, service_role;
 
 create table ym.organizations (
  id uuid primary key default gen_random_uuid(), name text not null check(length(name) between 1 and 200),
@@ -102,7 +102,7 @@ create table ym.invoices (
  currency text not null, document_date date not null, created_at timestamptz not null default clock_timestamp(),
  payment_method text not null check(payment_method in ('cash','bank','insurance','credit_purchase')),
  total numeric(18,2) not null check(total>0), patient_due numeric(18,2),
- primary key(org_id,id), unique(org_id,document_uuid),
+ primary key(org_id,id), unique(org_id,document_uuid), unique(document_uuid),
  foreign key(org_id,warehouse_id) references ym.warehouses, foreign key(org_id,party_id) references ym.parties,
  check((kind='purchase' and party_id is not null and supplier_reference is not null and payment_method='credit_purchase')
     or (kind='sale' and supplier_reference is null and payment_method <> 'credit_purchase')),

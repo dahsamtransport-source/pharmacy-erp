@@ -11,6 +11,7 @@ const qty = async () => Number(await scalar('select coalesce(sum(quantity),0) fr
 test('01 all tables have RLS; no PUBLIC entrypoint/helper or anonymous schema access', async () => {
  assert.equal(Number(await scalar("select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='ym' and c.relkind='r' and not c.relrowsecurity")),0);
  assert.equal(await scalar("select has_schema_privilege('anon','ym_api','usage')"),false);
+ assert.equal(await scalar("select has_schema_privilege('service_role','ym_private','usage')"),false);
  assert.equal(await scalar("select has_function_privilege('authenticated','ym_private.dispense(uuid,uuid,uuid,uuid,bigint)','execute')"),false);
  assert.equal(await scalar("select has_function_privilege('anon','ym_api.expire_reservations(uuid)','execute')"),false);
 });
@@ -229,4 +230,11 @@ test('33 same purchase request survives supplier deactivation without a duplicat
  const request=uuid(); const id=await f.purchase(2,{request,reference:'RETRY'});
  await db.query('update ym.parties set active=false where org_id=$1 and id=$2',[f.org,f.supplier]);
  assert.equal(await f.purchase(2,{request,reference:'RETRY'}),id);
+});
+
+test('34 DOCUMENT_UUID is globally unique, including another organization', async () => {
+ await f.purchase(); const request=uuid(); await f.sale(1,{request});
+ const other=await fixture(db); await other.purchase(3);
+ await assert.rejects(other.sale(1,{request}),/invoices_document_uuid_key/);
+ assert.equal(Number(await scalar('select sum(quantity) from ym.batches where org_id=$1',[other.org])),3);
 });

@@ -73,12 +73,12 @@ end $$;
 do $$ declare t record; begin
  for t in select tablename from pg_tables where schemaname='ym' loop
   execute format('alter table ym.%I enable row level security',t.tablename);
-  execute format('revoke all on ym.%I from public, anon, authenticated',t.tablename);
+  execute format('revoke all on ym.%I from public, anon, authenticated, service_role',t.tablename);
  end loop;
 end $$;
 grant usage on schema ym,ym_api,ym_private to authenticated;
 grant select on all tables in schema ym to authenticated;
-revoke all on all sequences in schema ym from public,anon,authenticated;
+revoke all on all sequences in schema ym from public,anon,authenticated,service_role;
 
 -- Catalog and quantities contain no cost fields or credentials.
 do $$ declare t text; begin
@@ -181,7 +181,7 @@ create function ym_api.save_account(p_org uuid,p_id uuid,p_code text,p_name text
 returns uuid language sql security invoker set search_path='' as $$ select ym_private.save_account(p_org,p_id,p_code,p_name,p_kind,p_parent,p_postable); $$;
 
 -- Revoke every helper, then explicitly grant only checked entrypoints and the RLS helper.
-revoke execute on all functions in schema ym_private,ym_api from public,anon,authenticated;
+revoke execute on all functions in schema ym_private,ym_api from public,anon,authenticated,service_role;
 grant execute on function ym_private.has_role(uuid,text[]) to authenticated;
 do $$ declare f record; begin
  for f in select p.oid::regprocedure as signature from pg_proc p join pg_namespace n on n.oid=p.pronamespace
