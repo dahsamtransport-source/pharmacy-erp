@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { timezoneSchema } from "./financial";
+import type { CostCenter, FinancialStatement, ReportRange } from "./financial";
 export const roleSchema = z.enum([
   "owner",
   "manager",
@@ -15,7 +17,7 @@ export const workspaceSchema = z.object({
   id,
   name: z.string(),
   currency: z.string(),
-  timezone: z.string(),
+  timezone: timezoneSchema,
   role: roleSchema,
   warehouses: z.array(z.object({ id, name: z.string() })),
 });
@@ -153,6 +155,14 @@ export interface Database {
       invoice_receipt: Read<{ p_org: string; p_id: string }>;
       receipt_by_request: Read<{ p_org: string; p_request: string }>;
       financial_report: Read<{ p_org: string; p_from: string; p_to: string }>;
+      financial_report_options: Read<{ p_org: string }>;
+      financial_report_v2: Read<{
+        p_org: string;
+        p_from: string;
+        p_to: string;
+        p_center: string | null;
+        p_include_zero: boolean;
+      }>;
       process_pharmacy_sale: {
         Args: {
           p_org: string;
@@ -213,6 +223,8 @@ export interface PharmacyApi {
   receipt(org: string, id: string): Promise<Receipt>;
   findReceipt(org: string, request: string): Promise<Receipt | null>;
   report(org: string, from: string, to: string): Promise<FinancialReport>;
+  reportOptions(org: string): Promise<CostCenter[]>;
+  statement(org: string, range: ReportRange): Promise<FinancialStatement>;
   sell(org: string, request: string, input: SaleInput): Promise<string>;
   purchase(org: string, request: string, input: PurchaseInput): Promise<string>;
 }

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { centerSchema, financialStatementSchema } from "./financial";
 import {
   type Database,
   type PharmacyApi,
@@ -21,6 +22,13 @@ export class ApiFailure extends Error {
   }
 }
 const messages: Record<string, string> = {
+  REPORT_ACCOUNT_MAPPING_REQUIRED:
+    "تحتاج التقارير إلى ربط صحيح لحساب تكلفة المبيعات. راجع المحاسب.",
+  INVALID_REPORT_PERIOD:
+    "اختر فترة صحيحة لا يزيد الفرق بين تاريخيها عن 366 يومًا.",
+  INVALID_REPORT_CENTER: "مركز التكلفة غير متاح ضمن المنشأة الحالية.",
+  REPORT_CURRENCY_MISMATCH:
+    "تعذّر إعداد التقرير لوجود عملات غير متوافقة في القيود. راجع المحاسب.",
   FORBIDDEN: "لا تملك صلاحية هذه العملية.",
   INSUFFICIENT_STOCK: "الرصيد غير كافٍ. حدّث الأصناف وراجع الكمية.",
   INSUFFICIENT_AVAILABLE_STOCK: "الكمية المطلوبة محجوزة أو غير متاحة للصرف.",
@@ -143,6 +151,29 @@ export function pharmacyApi(client: SupabaseClient<Database>): PharmacyApi {
       ),
     report: (p_org, p_from, p_to) =>
       read(api.rpc("financial_report", { p_org, p_from, p_to }), reportSchema),
+    reportOptions: (p_org) =>
+      read(
+        api.rpc("financial_report_options", { p_org }),
+        z.array(centerSchema),
+      ),
+    statement: (p_org, range) =>
+      read(
+        api.rpc("financial_report_v2", {
+          p_org,
+          p_from: range.from,
+          p_to: range.to,
+          p_center: range.center,
+          p_include_zero: range.includeZero,
+        }),
+        financialStatementSchema.refine(
+          (s) =>
+            s.org_id === p_org &&
+            s.from === range.from &&
+            s.to === range.to &&
+            (s.cost_center?.id ?? null) === range.center &&
+            s.include_zero === range.includeZero,
+        ),
+      ),
     sell: (p_org, p_request, input) =>
       read(
         api.rpc("process_pharmacy_sale", {

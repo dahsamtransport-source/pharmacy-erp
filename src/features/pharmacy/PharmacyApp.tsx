@@ -27,6 +27,7 @@ import {
   type Receipt,
 } from "@/lib/pharmacy/contracts";
 import { friendlyError } from "@/lib/pharmacy/api";
+import { businessDateInZone } from "@/lib/pharmacy/financial";
 import { useRemote, useOnline } from "@/hooks/use-remote";
 import { PharmacySession, usePharmacySession } from "./session";
 import { Dialog, ErrorBox } from "./ui";
@@ -406,7 +407,8 @@ function WorkspaceApp() {
                 api={effectiveApi}
                 workspace={workspace}
                 businessDate={
-                  data?.business_date ?? new Date().toISOString().slice(0, 10)
+                  data?.business_date ??
+                  businessDateInZone(workspace?.timezone ?? "UTC")
                 }
               />
             )}
