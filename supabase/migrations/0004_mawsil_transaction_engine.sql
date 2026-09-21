@@ -158,7 +158,7 @@ begin
     raise exception 'INVALID_APPROVAL_TTL';
   end if;
 
-  v_hash := encode(digest(coalesce(p_payload, '{}'::jsonb)::text, 'sha256'), 'hex');
+  v_hash := encode(extensions.digest(coalesce(p_payload, '{}'::jsonb)::text, 'sha256'), 'hex');
 
   insert into public.approval_requests(
     merchant_id, requested_by, action, risk_level, status, reason,
@@ -332,7 +332,7 @@ begin
     'currency_code', p_currency_code,
     'operation_type', 'sale.commit'
   );
-  v_hash := encode(digest(v_payload::text, 'sha256'), 'hex');
+  v_hash := encode(extensions.digest(v_payload::text, 'sha256'), 'hex');
 
   insert into public.transaction_operations(
     merchant_id, idempotency_key, operation_type, payload_hash, payload,
@@ -556,7 +556,7 @@ begin
   v_payload := jsonb_build_object(
     'merchant_id',p_merchant_id,'sale_id',p_sale_id,'reason',p_reason,'operation_type','sale.reverse'
   );
-  v_hash := encode(digest(v_payload::text,'sha256'),'hex');
+  v_hash := encode(extensions.digest(v_payload::text,'sha256'),'hex');
 
   select * into v_approval from public.approval_requests where id=p_approval_id for update;
   if not found

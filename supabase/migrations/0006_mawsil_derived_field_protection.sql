@@ -31,7 +31,7 @@ using ((select public.is_merchant_member(merchant_id)));
 
 create policy suppliers_insert on public.suppliers
 for insert to authenticated
-with check ((select public.has_merchant_role(merchant_id,array['owner','manager','inventory']))));
+with check ((select public.has_merchant_role(merchant_id,array['owner','manager','inventory'])));
 
 create policy suppliers_update on public.suppliers
 for update to authenticated

@@ -1,5 +1,32 @@
 # Mawsil Transaction Core — Audit & Baseline
 
+## Implementation update — 2026-09-21
+
+The historical audit below is retained as the original baseline. The current
+branch now adds the following verified improvements:
+
+- exact dependency versions and `package-lock.json`; CI uses `npm ci`;
+- local `typecheck`, ESLint, and production Next.js build all pass;
+- migrations `0001` through `0007` rebuild successfully in an isolated
+  PostgreSQL-compatible test database;
+- the migration test exercises merchant RLS isolation, denied direct ledger
+  writes, transaction idempotency, exact-payload approval binding, supplier
+  settlement, stock derivation, and financial-account ledger entries;
+- the AI endpoint now validates a real Supabase access token and verifies
+  membership for the requested merchant; the temporary shared internal token
+  is removed;
+- supplier payments, purchase reversals, immutable account entries, governed
+  exchange-rate recording, and operation-level FX snapshots are implemented;
+- `pgcrypto` is pinned to the `extensions` schema and hash calls are qualified,
+  preserving the empty `search_path` security boundary;
+- a blocking syntax error in migration `0006` was found by the database test
+  and fixed.
+
+Production readiness is still gated on applying the migrations to the actual
+Supabase project, testing against its deployed grants/RLS configuration, and
+obtaining successful hosted CI/CodeQL runs. AI remains planning-only and has no
+financial mutation tool.
+
 ## Verified discovery and audit — 2026-09-09
 
 Status: **NOT READY**. The historical findings below describe a foundation,

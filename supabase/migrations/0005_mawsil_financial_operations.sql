@@ -106,7 +106,7 @@ begin
     'merchant_id',p_merchant_id,'supplier_id',p_supplier_id,'items',p_items,
     'paid',p_paid,'currency_code',p_currency_code,'operation_type','purchase.commit'
   );
-  v_hash := encode(digest(v_payload::text,'sha256'),'hex');
+  v_hash := encode(extensions.digest(v_payload::text,'sha256'),'hex');
 
   insert into public.transaction_operations(
     merchant_id,idempotency_key,operation_type,payload_hash,payload,status,actor_user_id,approval_id
@@ -274,7 +274,7 @@ begin
     'currency_code',p_currency_code,'method',p_method,'reference',p_reference,
     'operation_type','customer_payment.record'
   );
-  v_hash:=encode(digest(v_payload::text,'sha256'),'hex');
+  v_hash:=encode(extensions.digest(v_payload::text,'sha256'),'hex');
 
   insert into public.transaction_operations(
     merchant_id,idempotency_key,operation_type,payload_hash,payload,status,actor_user_id,approval_id
@@ -380,7 +380,7 @@ begin
     'merchant_id',p_merchant_id,'category',p_category,'amount',p_amount,
     'currency_code',p_currency_code,'note',p_note,'operation_type','expense.record'
   );
-  v_hash:=encode(digest(v_payload::text,'sha256'),'hex');
+  v_hash:=encode(extensions.digest(v_payload::text,'sha256'),'hex');
 
   insert into public.transaction_operations(
     merchant_id,idempotency_key,operation_type,payload_hash,payload,status,actor_user_id,approval_id
@@ -488,7 +488,7 @@ begin
     'merchant_id',p_merchant_id,'product_id',p_product_id,
     'quantity_delta',p_quantity_delta,'reason',p_reason,'operation_type','inventory.adjust'
   );
-  v_hash:=encode(digest(v_payload::text,'sha256'),'hex');
+  v_hash:=encode(extensions.digest(v_payload::text,'sha256'),'hex');
 
   select * into v_approval from public.approval_requests where id=p_approval_id for update;
   if not found

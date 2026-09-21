@@ -1,48 +1,48 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { orchestrateBusinessRequest } from '@/lib/ai/orchestrator';
+import {
+  AuthenticationError,
+  requireMerchantMember,
+} from '@/lib/auth/merchant-auth';
 
 export const runtime = 'nodejs';
 
 const MAX_INPUT_LENGTH = 4000;
-
-function isAuthorized(request: Request) {
-  const expected = process.env.MAWSIL_AI_INTERNAL_TOKEN;
-  if (!expected) return false;
-
-  const authorization = request.headers.get('authorization');
-  return authorization === `Bearer ${expected}`;
-}
+const RequestBody = z.object({
+  merchantId: z.uuid(),
+  input: z.string().trim().min(1).max(MAX_INPUT_LENGTH),
+});
 
 export async function POST(request: Request) {
   try {
-    if (!isAuthorized(request)) {
-      return NextResponse.json(
-        { error: 'UNAUTHORIZED' },
-        { status: 401 },
-      );
-    }
-
-    const body = (await request.json()) as { input?: unknown };
-
-    if (typeof body.input !== 'string' || !body.input.trim()) {
-      return NextResponse.json(
-        { error: 'INPUT_REQUIRED' },
-        { status: 400 },
-      );
-    }
-
-    if (body.input.length > MAX_INPUT_LENGTH) {
-      return NextResponse.json(
-        { error: 'INPUT_TOO_LARGE' },
-        { status: 413 },
-      );
-    }
-
+    const body = RequestBody.parse(await request.json());
+    const auth = await requireMerchantMember(request, body.merchantId);
     const result = await orchestrateBusinessRequest(body.input);
 
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(
+      { ...result, context: { merchantId: auth.merchantId, role: auth.role } },
+      { status: 200 },
+    );
   } catch (error) {
     const code = error instanceof Error ? error.message : 'AI_ORCHESTRATOR_ERROR';
+
+    if (error instanceof AuthenticationError) {
+      const status = error.code === 'AUTH_CONFIGURATION_MISSING'
+        ? 503
+        : error.code === 'MERCHANT_ACCESS_DENIED'
+          ? 403
+          : 401;
+      return NextResponse.json({ error: error.code }, { status });
+    }
+
+    if (error instanceof z.ZodError) {
+      const tooLarge = error.issues.some((issue) => issue.code === 'too_big');
+      return NextResponse.json(
+        { error: tooLarge ? 'INPUT_TOO_LARGE' : 'INVALID_REQUEST' },
+        { status: tooLarge ? 413 : 400 },
+      );
+    }
 
     if (code === 'OPENAI_API_KEY_MISSING') {
       return NextResponse.json(
