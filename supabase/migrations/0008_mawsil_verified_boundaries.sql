@@ -92,7 +92,7 @@ declare
   v_existing public.transaction_operations;
   v_approval public.approval_requests;
   v_op uuid;
-  v_hash text:=mawsil_private.payload_hash(p_payload);
+  v_hash text;
   v_entity uuid;
   v_party uuid;
   v_product uuid;
@@ -113,7 +113,11 @@ begin
     (v_role='staff' and v_kind in ('sale.commit','customer_payment.record')) or
     (v_role='inventory' and v_kind in ('purchase.commit','inventory.adjust'))
   ) then raise exception 'OPERATION_FORBIDDEN' using errcode='42501'; end if;
-  if p_key is null or length(trim(p_key)) not between 8 and 160 then raise exception 'IDEMPOTENCY_KEY_REQUIRED'; end if;
+  if p_key is null or length(p_key) not between 8 and 160 or p_key<>trim(p_key) then
+    raise exception 'IDEMPOTENCY_KEY_REQUIRED';
+  end if;
+  if octet_length(p_payload::text)>65536 then raise exception 'TRANSACTION_PAYLOAD_TOO_LARGE'; end if;
+  v_hash:=mawsil_private.payload_hash(p_payload);
   -- A fixed snapshot could miss a preceding transaction after waiting on this lock.
   if current_setting('transaction_isolation')<>'read committed' then
     raise exception 'UNSUPPORTED_TRANSACTION_ISOLATION';

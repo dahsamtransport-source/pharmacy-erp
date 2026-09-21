@@ -235,6 +235,11 @@ try {
   const items = JSON.stringify([{ product_id: ids.product, quantity: 1, unit_price: 100 }]);
   const saleSql = 'select public.commit_sale($1,$2,$3::jsonb,$4,$5,$6,null) result';
   const saleArgs = [ids.merchant, ids.customer, items, 0, 'YER_NEW', 'sale-credit-0001'];
+  await expectError('oversized whitespace-padded key rejected',
+    () => db.query(saleSql, [...saleArgs.slice(0,5), ' '.repeat(200) + 'padded-key']), /IDEMPOTENCY_KEY_REQUIRED/);
+  await expectError('transaction RPC payload has a byte cap',
+    () => db.query("select public.record_customer_payment($1,$2,1,'YER_NEW','cash',$3,'oversized-reference',null)",
+      [ids.merchant, ids.customer, 'x'.repeat(65536)]), /TRANSACTION_PAYLOAD_TOO_LARGE/);
   const sale = (await db.query(saleSql, saleArgs)).rows[0].result;
   assert.equal(sale.debt, 100);
   const customerPaymentSql = "select public.record_customer_payment($1,$2,100,'YER_NEW','cash','CP-1','customer-pay-0001',null) result";

@@ -10,7 +10,7 @@ production migration, live financial operation, or hosted Site deployment.
 | Typecheck | `next typegen && tsc --noEmit` passed | Not runtime correctness |
 | Lint | ESLint passed | Not a security audit |
 | API/auth-adapter unit tests | 18 passed | Supabase and model are mocked |
-| Database regression | Migrations 0001–0008, positive flows and 55 expected rejection checks passed in PGlite | Only pgcrypto extension installation is skipped; no digest stub; not independent sessions |
+| Database regression | Migrations 0001–0008, positive flows and 57 expected rejection checks passed in PGlite | Only pgcrypto extension installation is skipped; no digest stub; not independent sessions |
 | Native PostgreSQL | Harness and PostgreSQL 16 CI service added | Not run locally; hosted CI success still required |
 | Production build | Next.js build passed | Not deployment or browser E2E |
 | Runtime dependency audit | `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities | Registry advisory snapshot, not proof of absence of vulnerabilities |
