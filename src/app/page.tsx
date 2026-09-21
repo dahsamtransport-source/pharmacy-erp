@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { classifyBusinessIntent, type BusinessIntent } from '@/lib/ai/orchestrator';
+import { classifyBusinessIntent, type BusinessIntent } from '@/lib/ai/intent';
 
 const cards: Array<{ title: string; description: string; intent: BusinessIntent }> = [
   { title: 'المبيعات', description: 'سجل البيع والطلبات بسرعة.', intent: 'sales' },
@@ -25,7 +25,7 @@ export default function HomePage() {
   const [result, setResult] = useState<BusinessIntent | null>(null);
   const intent = useMemo(() => classifyBusinessIntent(input), [input]);
 
-  function execute() {
+  function suggestSection() {
     setResult(intent);
   }
 
@@ -34,7 +34,7 @@ export default function HomePage() {
       <header className="hero">
         <span className="eyebrow">MAWSIL AI BUSINESS OS</span>
         <h1>موصل</h1>
-        <p>مساعدك الذكي لإدارة تجارتك من الكلام إلى الفعل.</p>
+        <p>واجهة تجريبية لتنظيم العمل التجاري — التنفيذ المالي غير مفعّل.</p>
       </header>
 
       <section className="command-card" aria-labelledby="command-title">
@@ -45,18 +45,20 @@ export default function HomePage() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') execute();
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing && input.trim()) suggestSection();
             }}
             aria-label="أمر موصل"
+            maxLength={4000}
             placeholder="اكتب أمرًا تجاريًا..."
           />
-          <button type="button" onClick={execute} disabled={!input.trim()}>
-            نفّذ
+          <button type="button" onClick={suggestSection} disabled={!input.trim()}>
+            اقترح القسم
           </button>
         </div>
         {result && (
           <div className="result" role="status">
             <strong>القسم المقترح:</strong> {labels[result]}
+            <p>اقتراح محلي فقط؛ لم تُسجّل عملية ولم تتغيّر الأرصدة أو الكميات.</p>
           </div>
         )}
       </section>

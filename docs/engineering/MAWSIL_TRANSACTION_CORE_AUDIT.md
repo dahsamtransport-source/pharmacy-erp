@@ -1,6 +1,41 @@
 # Mawsil Transaction Core — Audit & Baseline
 
-## Implementation update — 2026-09-21
+## Verified hardening and evidence correction — 2026-09-21
+
+Status remains **NOT READY FOR PRODUCTION**. The previous local migration
+test substituted MD5 for `extensions.digest` and used a single PGlite session.
+It did **not** verify pgcrypto, independent-session races, hosted PostgreSQL,
+or live Supabase JWT/RLS behavior. The earlier implementation note below must
+not be read as evidence of those checks.
+
+Migration `0008` is a forward-only repair; historical migrations are retained.
+The current engine uses PostgreSQL's native SHA-256, and the local test no
+longer installs any digest mock. It checks the known SHA-256 `abc` test vector.
+Authorization, exact approval payloads/requester/expiry, safe replay after
+settlement or approval consumption, credit limits, finite amounts, tenant-safe
+stock queries, deletion/truncation restrictions, and full rollback on a final
+audit-write failure are covered by the expanded local regression script.
+
+All financial engine calls take a merchant-row lock first and require READ
+COMMITTED isolation. Separate-session last-stock, duplicate-key, and rollback
+races have been added to a native PostgreSQL 16 CI harness, but were **not run
+in the local environment**. No production database was inspected or modified.
+
+The API and Supabase-auth adapter have 18 passing unit tests using mocked
+external services; these are not live token or model tests. The SDK/auth modules
+are server-only, the browser classifier is separate, request bytes/JSON are
+validated before paid model calls, and responses cannot claim execution.
+Planning is disabled by default until live auth, budgets and distributed rate
+limits pass. Typecheck, lint, PGlite regression checks and Next production build
+pass locally.
+
+Current intentional restrictions and deployment gates are documented in
+`MAWSIL_VERIFICATION.md`. In particular, single-currency balances are not a
+multi-currency ledger, account entries are incomplete cash accounting, and
+settled returns require a refund/allocation engine. Sites deployment, template
+packaging and unrelated media/pet integrations are not claimed as completed.
+
+## Earlier implementation note — 2026-09-21 (superseded by correction above)
 
 The historical audit below is retained as the original baseline. The current
 branch now adds the following verified improvements:

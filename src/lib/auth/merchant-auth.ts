@@ -1,3 +1,4 @@
+import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 export type MerchantAuthContext = {
@@ -21,11 +22,12 @@ export class AuthenticationError extends Error {
 
 function readBearerToken(request: Request) {
   const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) {
+  const match = authorization?.match(/^Bearer[ \t]+([^ \t]+)$/i);
+  if (!match || match[1].length > 8192) {
     throw new AuthenticationError('AUTH_TOKEN_MISSING');
   }
 
-  const token = authorization.slice('Bearer '.length).trim();
+  const token = match[1];
   if (!token) {
     throw new AuthenticationError('AUTH_TOKEN_MISSING');
   }
@@ -36,7 +38,9 @@ function readBearerToken(request: Request) {
 export async function requireMerchantMember(
   request: Request,
   merchantId: string,
+  clientFactory: typeof createClient = createClient,
 ): Promise<MerchantAuthContext> {
+  const token = readBearerToken(request);
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
@@ -44,8 +48,7 @@ export async function requireMerchantMember(
     throw new AuthenticationError('AUTH_CONFIGURATION_MISSING');
   }
 
-  const token = readBearerToken(request);
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = clientFactory(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });

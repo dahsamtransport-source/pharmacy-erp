@@ -1,24 +1,7 @@
+import 'server-only';
 import { Agent, run, tool } from '@openai/agents';
 import { z } from 'zod';
-
-export type BusinessIntent =
-  | 'sales'
-  | 'inventory'
-  | 'debts'
-  | 'suppliers'
-  | 'analytics'
-  | 'unknown';
-
-export function classifyBusinessIntent(input: string): BusinessIntent {
-  const text = input.trim().toLowerCase();
-  if (!text) return 'unknown';
-  if (/بيع|باع|اشترى|طلب|فاتورة|مبيعات/.test(text)) return 'sales';
-  if (/مخزون|كمية|ناقص|نفد|صنف|بضاعة/.test(text)) return 'inventory';
-  if (/دين|مديون|عليه|سداد|تحصيل/.test(text)) return 'debts';
-  if (/مورد|شراء|توريد|مشتريات/.test(text)) return 'suppliers';
-  if (/تقرير|أرباح|ربح|تحليل|مبيعات اليوم|ملخص/.test(text)) return 'analytics';
-  return 'unknown';
-}
+import { classifyBusinessIntent } from './intent';
 
 const TransactionPlan = z.object({
   intent: z.enum(['sales', 'inventory', 'debts', 'suppliers', 'analytics', 'unknown']),
@@ -81,13 +64,15 @@ export async function orchestrateBusinessRequest(input: string) {
     throw new Error('OPENAI_API_KEY_MISSING');
   }
 
-  const result = await run(mawsilAgent, normalized, { maxTurns: 6 });
+  const result = await run(mawsilAgent, normalized, { maxTurns: 6, signal: AbortSignal.timeout(30_000) });
   const interruptions = result.interruptions ?? [];
 
   return {
     output: result.finalOutput,
     intent: classifyBusinessIntent(normalized),
-    requiresApproval: interruptions.length > 0,
+    // Model output is a draft, never an authorization decision or executable state.
+    requiresApproval: true,
+    execution: 'not_executed' as const,
     interruptions: interruptions.map((item) => ({
       name: item.name,
       arguments: item.arguments,
