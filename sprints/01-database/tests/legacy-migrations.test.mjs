@@ -32,5 +32,16 @@ test('legacy migrations replay and block forged supplier balances and cross-tena
     const result = await db.query('select name,balance from suppliers');
     assert.equal(result.rows.length, 1);
     assert.equal(result.rows[0].balance, '0.00');
+    await db.exec('reset role');
+    const product = '00000000-0000-4000-8000-000000000004';
+    const otherProduct = '00000000-0000-4000-8000-000000000005';
+    await db.query("insert into products(id,merchant_id,name) values ($1,$2,'Own'),($3,$4,'Other')",[product,org,otherProduct,other]);
+    await db.query("insert into inventory_movements(merchant_id,product_id,quantity_delta,unit,reason,idempotency_key) values ($1,$2,7,'piece','opening','own'),($3,$4,99,'piece','opening','other')",[org,product,other,otherProduct]);
+    await db.exec('set role authenticated');
+    assert.equal(Number((await db.query('select current_stock($1,$2) value',[org,product])).rows[0].value),7);
+    await assert.rejects(db.query('select current_stock($1,$2)',[other,otherProduct]),/MERCHANT_ACCESS_DENIED/);
+    assert.equal(Number((await db.query('select current_stock($1,$2) value',[org,otherProduct])).rows[0].value),0);
+    await db.exec('reset role; set role anon');
+    await assert.rejects(db.query('select current_stock($1,$2)',[org,product]),/permission denied/);
   } finally { await db.close(); }
 });

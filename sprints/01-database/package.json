@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/database.test.mjs",
-    "test:postgres": "node tests/require-native.mjs && node --test --test-concurrency=1 tests/database.test.mjs tests/concurrency.test.mjs",
+    "test": "node --test tests/disposable-target.test.mjs tests/database.test.mjs",
+    "test:postgres": "node tests/require-native.mjs && node --test --test-concurrency=1 tests/disposable-target.test.mjs tests/database.test.mjs tests/concurrency.test.mjs",
     "test:legacy": "node --test tests/legacy-migrations.test.mjs"
   },
   "devDependencies": {
