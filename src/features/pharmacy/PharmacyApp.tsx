@@ -1,9 +1,18 @@
 "use client";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import Link from "next/link";
 import { MotionConfig } from "framer-motion";
 import {
   Activity,
+  Moon,
+  Sun,
+  X,
   LayoutDashboard,
   ShoppingBag,
   Package,
@@ -35,6 +44,7 @@ import { Dialog, ErrorBox } from "./ui";
 import { POS, PurchaseReceipt, ReceiptDialog } from "./workflows";
 import { Inventory, Reports } from "./data-views";
 import { Assistant } from "./Assistant";
+import { useAppearance } from "./appearance";
 const pageLabels: Record<Page, string> = {
   dashboard: "لوحة التحكم",
   pos: "نقطة البيع",
@@ -54,6 +64,10 @@ export default function PharmacyApp() {
 }
 function WorkspaceApp() {
   const session = usePharmacySession();
+  const { mode, toggle } = useAppearance();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
   const { auth, api } = session;
   const online = useOnline();
   const workspace = auth.status === "ready" ? auth.workspaces[0] : undefined;
@@ -96,6 +110,56 @@ function WorkspaceApp() {
     const timeout = setTimeout(() => setToast(""), 6000);
     return () => clearTimeout(timeout);
   }, [toast]);
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, []);
+  useEffect(() => {
+    if (!menu) return;
+    const trigger = menuRef.current;
+    const priorOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    sidebarRef.current
+      ?.querySelector<HTMLButtonElement>(".sidebar-close")
+      ?.focus();
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenu(false);
+      if (event.key !== "Tab") return;
+      const items = Array.from(
+        sidebarRef.current?.querySelectorAll<HTMLElement>(
+          "a, button, summary",
+        ) ?? [],
+      ).filter((el) => el.getClientRects().length > 0);
+      const first = items[0],
+        last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      }
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+    const desktop = window.matchMedia("(min-width: 901px)");
+    const onResize = () => {
+      if (desktop.matches) setMenu(false);
+    };
+    desktop.addEventListener("change", onResize);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = priorOverflow;
+      document.removeEventListener("keydown", onKey);
+      desktop.removeEventListener("change", onResize);
+      trigger?.focus();
+    };
+  }, [menu]);
   function navigate(next: Page) {
     setPage(next);
     setMenu(false);
@@ -129,7 +193,7 @@ function WorkspaceApp() {
   const currentReceipt =
     ready && receipt?.identity === identity ? receipt.value : null;
   return (
-    <div className="app-shell" dir="rtl">
+    <div className="app-shell" dir="rtl" data-appearance={mode}>
       <a href="#main-content" className="skip-link">
         انتقل إلى المحتوى
       </a>
@@ -141,9 +205,20 @@ function WorkspaceApp() {
         />
       )}
       <aside
+        ref={sidebarRef}
+        id="workspace-navigation"
+        role={menu ? "dialog" : undefined}
+        aria-modal={menu || undefined}
         className={`sidebar ${menu ? "is-open" : ""}`}
         aria-label="القائمة الجانبية"
       >
+        <button
+          className="icon-button sidebar-close"
+          aria-label="إغلاق القائمة"
+          onClick={() => setMenu(false)}
+        >
+          <X size={20} />
+        </button>
         <Link className="brand" href="/" aria-label="YmPharma الرئيسية">
           <span className="brand-mark">
             <Activity size={26} />
@@ -198,7 +273,7 @@ function WorkspaceApp() {
             حالة الاتصال
           </button>
           <div className="sidebar-version">
-            YmPharma <span>SPRINT 02</span>
+            YmPharma <span>MEDICAL ERP</span>
           </div>
         </div>
       </aside>
@@ -208,6 +283,8 @@ function WorkspaceApp() {
             <button
               className="icon-button mobile-menu"
               aria-label="فتح القائمة"
+              ref={menuRef}
+              aria-controls="workspace-navigation"
               aria-expanded={menu}
               onClick={() => setMenu(!menu)}
             >
@@ -228,14 +305,24 @@ function WorkspaceApp() {
             >
               <Search size={17} />
               <input
+                ref={searchRef}
                 aria-label="البحث العام عن صنف أو تشغيلة"
                 placeholder="ابحث عن صنف أو تشغيلة…"
                 maxLength={120}
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
               />
-              <kbd>↵</kbd>
+              <kbd dir="ltr">Ctrl K</kbd>
             </form>
+            <button
+              className="icon-button appearance-toggle"
+              onClick={toggle}
+              aria-label={
+                mode === "dark" ? "تفعيل الوضع النهاري" : "تفعيل الوضع الليلي"
+              }
+            >
+              {mode === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             <button
               className="icon-button bell"
               aria-label="عرض تنبيهات المخزون"
@@ -268,7 +355,7 @@ function WorkspaceApp() {
             </button>
           </div>
         </header>
-        <main id="main-content" className="workspace-main">
+        <main id="main-content" className="workspace-main" tabIndex={-1}>
           <div className="workspace-toolbar">
             <span
               className={`connection-badge ${ready && online ? "connected" : ""}`}
