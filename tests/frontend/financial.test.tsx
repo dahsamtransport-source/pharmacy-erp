@@ -95,6 +95,38 @@ function financeApi() {
   vi.mocked(api.statement).mockResolvedValue(structuredClone(sample));
   return api;
 }
+
+it("trial balance opens the selected account ledger with the applied report scope", async () => {
+  const api = financeApi();
+  vi.mocked(api.ledger).mockResolvedValue({
+    org_id: ids.org,
+    organization_name: sample.organization,
+    currency: sample.currency,
+    account: { id: ids.unit, code: "1110", name: "الصندوق", kind: "asset" },
+    from: sample.from,
+    to: sample.to,
+    center_id: null,
+    generated_at: sample.generated_at,
+    opening: "60.00",
+    debit: "0.00",
+    credit: "0.00",
+    closing: "60.00",
+    count: 0,
+    entries: [],
+  });
+  mount(api);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "كشف حركة الصندوق" }),
+  );
+  await screen.findByText("لا توجد حركة مرحّلة في الفترة");
+  expect(api.ledger).toHaveBeenCalledWith(ids.org, ids.unit, {
+    from: sample.from,
+    to: sample.to,
+    center: null,
+    includeZero: false,
+  });
+  expect(screen.getByRole("dialog")).toBeTruthy();
+});
 const mount = (api = financeApi()) => {
   render(
     <FinancialReports

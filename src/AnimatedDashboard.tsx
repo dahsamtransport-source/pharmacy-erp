@@ -13,7 +13,8 @@ import {
 import type { Dashboard } from "@/lib/pharmacy/contracts";
 import { formatAmount, percentChange } from "@/lib/pharmacy/money";
 import { Empty, Skeleton } from "@/features/pharmacy/ui";
-export type Page = "dashboard" | "pos" | "purchases" | "inventory" | "reports";
+export type Page =
+  "dashboard" | "pos" | "purchases" | "inventory" | "reports" | "assistant";
 export interface DashboardProps {
   data?: Dashboard;
   currency?: string;
@@ -95,7 +96,7 @@ export default function AnimatedDashboard({
   return (
     <>
       <motion.header
-        initial={{ opacity: 0, y: reduce ? 0 : -10 }}
+        initial={reduce ? false : { opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="page-heading"
       >
@@ -121,7 +122,7 @@ export default function AnimatedDashboard({
       </motion.header>
       <motion.div
         variants={containerVariants}
-        initial="hidden"
+        initial={reduce ? false : "hidden"}
         animate="show"
         className="stat-grid"
       >

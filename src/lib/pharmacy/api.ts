@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { isLoopbackDataApi } from "./connectivity";
+import { ledgerSchema } from "./ledger";
 import { z } from "zod";
 import { centerSchema, financialStatementSchema } from "./financial";
 import {
@@ -23,6 +24,9 @@ export class ApiFailure extends Error {
   }
 }
 const messages: Record<string, string> = {
+  LEDGER_RANGE_TOO_LARGE:
+    "تجاوز الكشف 1000 قيد. اختر فترة أقصر أو مركز تكلفة محددًا؛ لم تُحذف أي حركات من النتيجة.",
+  LEDGER_ACCOUNT_UNAVAILABLE: "الحساب غير متاح ضمن المنشأة الحالية.",
   REPORT_ACCOUNT_MAPPING_REQUIRED:
     "تحتاج التقارير إلى ربط صحيح لحساب تكلفة المبيعات. راجع المحاسب.",
   INVALID_REPORT_PERIOD:
@@ -121,8 +125,20 @@ export function browserClient(): SupabaseClient<Database> | null {
     },
   });
 }
-export function pharmacyApi(client: SupabaseClient<Database>): PharmacyApi {
+export function pharmacyApi(
+  client: SupabaseClient<Database>,
+  actor?: string,
+): PharmacyApi {
   const api = client.schema("ym_api");
+  async function mutationToken() {
+    const { data, error } = await client.auth.getSession();
+    if (!actor || error || !data.session || data.session.user.id !== actor)
+      throw new ApiFailure(
+        "تغيّر الحساب. أعد فتح العملية من الحساب الحالي.",
+        true,
+      );
+    return data.session.access_token;
+  }
   return {
     context: () =>
       read(api.rpc("workspace_context", {}), z.array(workspaceSchema)),
@@ -157,6 +173,24 @@ export function pharmacyApi(client: SupabaseClient<Database>): PharmacyApi {
         api.rpc("financial_report_options", { p_org }),
         z.array(centerSchema),
       ),
+    ledger: (p_org, p_account, range) =>
+      read(
+        api.rpc("account_ledger", {
+          p_org,
+          p_account,
+          p_from: range.from,
+          p_to: range.to,
+          p_center: range.center,
+        }),
+        ledgerSchema.refine(
+          (r) =>
+            r.org_id === p_org &&
+            r.account.id === p_account &&
+            r.from === range.from &&
+            r.to === range.to &&
+            r.center_id === range.center,
+        ),
+      ),
     statement: (p_org, range) =>
       read(
         api.rpc("financial_report_v2", {
@@ -175,28 +209,36 @@ export function pharmacyApi(client: SupabaseClient<Database>): PharmacyApi {
             s.include_zero === range.includeZero,
         ),
       ),
-    sell: (p_org, p_request, input) =>
-      read(
-        api.rpc("process_pharmacy_sale", {
-          p_org,
-          p_request,
-          p_warehouse: input.warehouse,
-          p_items: input.items.map((x) => ({ ...x })),
-          p_payment: input.payment,
-        }),
+    sell: async (p_org, p_request, input) => {
+      const token = await mutationToken();
+      return read(
+        api
+          .rpc("process_pharmacy_sale", {
+            p_org,
+            p_request,
+            p_warehouse: input.warehouse,
+            p_items: input.items.map((x) => ({ ...x })),
+            p_payment: input.payment,
+          })
+          .setHeader("Authorization", `Bearer ${token}`),
         z.uuid(),
-      ),
-    purchase: (p_org, p_request, input) =>
-      read(
-        api.rpc("receive_purchase_order", {
-          p_org,
-          p_request,
-          p_warehouse: input.warehouse,
-          p_supplier: input.supplier,
-          p_reference: input.reference,
-          p_items: input.items.map((x) => ({ ...x })),
-        }),
+      );
+    },
+    purchase: async (p_org, p_request, input) => {
+      const token = await mutationToken();
+      return read(
+        api
+          .rpc("receive_purchase_order", {
+            p_org,
+            p_request,
+            p_warehouse: input.warehouse,
+            p_supplier: input.supplier,
+            p_reference: input.reference,
+            p_items: input.items.map((x) => ({ ...x })),
+          })
+          .setHeader("Authorization", `Bearer ${token}`),
         z.uuid(),
-      ),
+      );
+    },
   };
 }

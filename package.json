@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && vitest run --config vitest.server.config.mts",
     "test:db": "npm test --prefix sprints/01-database",
     "local:doctor": "node scripts/local-supabase.mjs doctor",
     "local:start": "node scripts/local-supabase.mjs start",
@@ -20,6 +20,7 @@
     "local:migrate": "node scripts/local-supabase.mjs migrate",
     "local:smoke": "node scripts/local-supabase.mjs smoke",
     "local:test-db": "node scripts/local-postgres-tests.mjs",
+    "local:test-assistant": "node scripts/local-assistant-services.mjs",
     "local:dev": "node scripts/local-supabase.mjs dev",
     "test:local-tools": "node --test tests/local/*.test.mjs"
   },

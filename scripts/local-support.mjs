@@ -36,6 +36,20 @@ export function localEnvironment(source = process.env) {
 
 export function redact(text) {
   return String(text)
+    .replace(/https?:\/\/[^\s"'<>]+/g, (value) => {
+      try {
+        const url = new URL(value);
+        if (
+          [...url.searchParams.keys()].some((key) =>
+            /signature|credential|token|policy/i.test(key),
+          )
+        )
+          return `${url.origin}${url.pathname}?[signed query hidden]`;
+      } catch {
+        /* Preserve non-URLs for the following redactors. */
+      }
+      return value;
+    })
     .replace(/postgres(?:ql)?:\/\/[^\s"']+/g, "[database URL hidden]")
     .replace(/sb_(?:secret|publishable)_[A-Za-z0-9_-]+/g, "[key hidden]")
     .replace(

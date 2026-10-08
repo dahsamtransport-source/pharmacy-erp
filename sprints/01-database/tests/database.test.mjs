@@ -1,5 +1,6 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { openDatabase, migrate, fixture, uuid, native } from './harness.mjs';
 let db, f;
 before(async () => { db = await openDatabase(); await migrate(db); });
@@ -7,6 +8,20 @@ after(async () => { if (db) await db.close(); });
 beforeEach(async () => { f = await fixture(db); });
 const scalar = async (sql, args=[]) => Object.values((await db.query(sql,args)).rows[0])[0];
 const qty = async () => Number(await scalar('select coalesce(sum(quantity),0) from ym.batches where org_id=$1',[f.org]));
+
+test('63 baseline repair preserves a newer definer guard including its ACL and settings', async () => {
+ await db.exec('begin');
+ try {
+  // Sentinel models an independently hardened deployment. Never replace its body.
+  await db.exec("create or replace function ym_private.balance_check() returns trigger language plpgsql security definer set search_path='' as $$ begin raise exception 'NEWER_GUARD_SENTINEL'; end $$");
+  const snapshot = () => db.query("select pg_get_functiondef(oid) as definition,proacl::text as acl,proconfig from pg_proc where oid='ym_private.balance_check()'::regprocedure");
+  const before = (await snapshot()).rows;
+  const migration = await readFile(new URL('../supabase/migrations/20261008013715_ympharma_deferred_balance_guard.sql',import.meta.url),'utf8');
+  await db.exec(migration);
+  assert.deepEqual((await snapshot()).rows,before);
+ } finally { await db.exec('rollback'); }
+ await f.purchase(2); await f.sale(1);
+});
 
 test('01 all tables have RLS; no PUBLIC entrypoint/helper or anonymous schema access', async () => {
  assert.equal(Number(await scalar("select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='ym' and c.relkind='r' and not c.relrowsecurity")),0);
@@ -22,6 +37,47 @@ test('02 purchase and sale compute totals and balanced four-line sale journal', 
  const r=await db.query('select sum(debit) d,sum(credit) c,count(*) n from ym.journal_lines where org_id=$1 and journal_id=(select id from ym.journals where org_id=$1 and invoice_id=$2)',[f.org,sale]);
  assert.equal(r.rows[0].d,r.rows[0].c); assert.equal(Number(r.rows[0].n),4); assert.equal(Number(r.rows[0].d),42);
  assert.equal(Number(await scalar('select inventory_value from ym.valuations where org_id=$1',[f.org])),68);
+});
+
+test('64 shared assistant admission enforces actor/global caps and rejects foreign scope',async()=>{
+ const claim=(actor,org=f.org,warehouse=f.warehouse)=>db.user(actor,()=>scalar('select ym_api.claim_assistant_budget($1,$2)',[org,warehouse]));
+ await assert.rejects(claim(f.outsider),/FORBIDDEN/);
+ await assert.rejects(claim(f.cashier,uuid()),/FORBIDDEN/);
+ await assert.rejects(claim(f.cashier,f.org,uuid()),/FORBIDDEN/);
+ for(const actor of [f.owner,f.manager,f.cashier]) {
+  for(let i=0;i<6;i++) assert.equal(await claim(actor),true);
+  assert.equal(await claim(actor),false);
+ }
+ assert.equal(await claim(f.accountant),true);assert.equal(await claim(f.accountant),true);
+ assert.equal(await claim(f.inventory),false);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_api.claim_assistant_budget(uuid,uuid)','execute')"),false);
+ await assert.rejects(db.user(f.owner,()=>db.query('select * from ym_private.assistant_request_windows')),/permission denied/);
+ await db.query("update ym_private.assistant_request_windows set started_at=clock_timestamp()-interval '61 seconds'");
+ assert.equal(await claim(f.cashier),true);
+});
+test('61 deferred balance guard commits authorized cashier/inventory operations without exposing journals', async () => {
+ await f.purchase(3); await f.sale(1);
+ for (const actor of [f.cashier,f.inventory]) await db.user(actor,async()=>{
+  assert.equal(Number(await scalar('select count(*) from ym.journals where org_id=$1',[f.org])),0);
+  assert.equal(Number(await scalar('select count(*) from ym.journal_lines where org_id=$1',[f.org])),0);
+ });
+ assert.equal(await scalar("select has_function_privilege('authenticated','ym_private.balance_check()','execute')"),false);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_private.balance_check()','execute')"),false);
+ assert.equal(await scalar("select has_function_privilege('service_role','ym_private.balance_check()','execute')"),false);
+});
+test('62 unbalanced journal still rolls back when COMMIT runs as a cashier with no journal visibility', async () => {
+ await db.exec('begin');
+ const invoice=uuid(),journal=uuid();
+ try {
+  await db.query("insert into ym.invoices(org_id,id,document_uuid,kind,warehouse_id,actor_id,currency,document_date,payment_method,total) values($1,$2,$3,'sale',$4,$5,'YER',current_date,'cash',1)",[f.org,invoice,uuid(),f.warehouse,f.cashier]);
+  await db.query("insert into ym.journals(org_id,id,invoice_id,document_date,period_month,currency,cost_center_id,description) values($1,$2,$3,current_date,date_trunc('month',current_date)::date,'YER',$4,'invalid low-role commit')",[f.org,journal,invoice,f.center]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit) values($1,$2,$3,1)',[f.org,journal,f.accounts.cash]);
+  await db.query("update ym.journals set status='posted' where org_id=$1 and id=$2",[f.org,journal]);
+  await db.exec('set local role authenticated');
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)",[f.cashier]);
+  await assert.rejects(db.exec('commit'),/UNBALANCED_OR_UNPOSTED/);
+ } finally {await db.exec('rollback');}
+ assert.equal(Number(await scalar('select count(*) from ym.invoices where org_id=$1 and id=$2',[f.org,invoice])),0);
 });
 test('03 FEFO consumes nearest expiry and traces exact batches', async () => {
  await f.purchase(10); await f.purchase(2,{batch:'EARLY',expiry:'2098-01-01'}); const sale=await f.sale(3);
@@ -377,4 +433,65 @@ test('54 missing or misclassified COGS mapping cannot generate misleading gross 
  await assert.rejects(statement(),/REPORT_ACCOUNT_MAPPING_REQUIRED/);
  await db.query("insert into ym.account_mappings values($1,'cogs',$2)",[f.org,f.accounts.cash]);
  await assert.rejects(statement(),/REPORT_ACCOUNT_MAPPING_REQUIRED/);
+});
+
+const ledger=(account=f.accounts.cash,from='2026-01-01',to='2026-01-31',center=null,actor=f.accountant,org=f.org)=>db.user(actor,()=>scalar('select ym_api.account_ledger($1,$2,$3,$4,$5)',[org,account,from,to,center]));
+test('55 ledger reconciles opening, debit, credit and running balances with trial balance',async()=>{
+ await reportJournal({date:'2025-12-31',amount:'100.00'});
+ await reportJournal({date:'2026-01-01',amount:'30.00'});
+ await reportJournal({date:'2026-01-31',amount:'20.00',debit:f.accounts.revenue,credit:f.accounts.cash});
+ await reportJournal({date:'2026-02-01',amount:'999.00'});
+ const r=await ledger();const row=(await statement()).accounts.find(a=>a.id===f.accounts.cash);
+ assert.equal(r.opening,row.opening);assert.equal(r.debit,row.debit);assert.equal(r.credit,row.credit);assert.equal(r.closing,row.closing);
+ assert.deepEqual(r.entries.map(e=>e.balance),['130.00','110.00']);assert.equal(r.count,2);
+ assert.ok(r.entries.every(e=>e.document_uuid&&e.journal_id));
+});
+test('56 ledger respects financial roles and organization scope',async()=>{
+ for(const role of ['cashier','pharmacist','inventory','outsider']) await assert.rejects(ledger(undefined,undefined,undefined,null,f[role]),/FORBIDDEN/);
+ for(const role of ['owner','manager','accountant']) assert.equal((await ledger(undefined,undefined,undefined,null,f[role])).count,0);
+ const other=await fixture(db);
+ await assert.rejects(ledger(other.accounts.cash),/LEDGER_ACCOUNT_UNAVAILABLE/);
+ await assert.rejects(ledger(undefined,undefined,undefined,other.center),/INVALID_REPORT_CENTER/);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_api.account_ledger(uuid,uuid,date,date,uuid)','execute')"),false);
+ assert.equal(await scalar("select prosecdef from pg_proc where oid='ym_api.account_ledger(uuid,uuid,date,date,uuid)'::regprocedure"),false);
+});
+test('57 ledger excludes unposted journals and honors center and date constraints',async()=>{
+ await reportJournal({beforePost:async()=>{assert.equal((await scalar('select ym_api.account_ledger($1,$2,$3,$4,null)',[f.org,f.accounts.cash,'2026-01-01','2026-01-31'])).count,0);}});
+ const center=uuid();await db.query("insert into ym.cost_centers values($1,$2,'LEDGER','Other')",[f.org,center]);
+ await reportJournal({center,amount:'7.00'});
+ assert.equal((await ledger(undefined,undefined,undefined,center)).debit,'7.00');
+ for(const [from,to] of [['2026-02-01','2026-01-01'],['2020-01-01','2026-01-01'],['infinity','infinity']]) await assert.rejects(ledger(undefined,from,to),/INVALID_REPORT_PERIOD/);
+});
+test('58 ledger handles inactive history, reversals, exact large amounts and currency isolation',async()=>{
+ await reportJournal({amount:'90071992547409.93',debit:f.accounts.revenue,credit:f.accounts.cash});
+ await db.query('update ym.accounts set active=false where org_id=$1 and id=$2',[f.org,f.accounts.cash]);
+ const r=await ledger();assert.equal(r.closing,'-90071992547409.93');assert.equal(r.entries[0].balance,r.closing);
+ await db.query('update ym.accounts set active=true where org_id=$1 and id=$2',[f.org,f.accounts.cash]);
+ await reportJournal({currency:'USD'});await assert.rejects(ledger(),/REPORT_CURRENCY_MISMATCH/);
+});
+test('59 empty ledger preserves opening balance without pretending there are period entries',async()=>{
+ await reportJournal({date:'2025-12-31',amount:'12.25'});
+ const r=await ledger();assert.equal(r.count,0);assert.deepEqual(r.entries,[]);assert.equal(r.opening,'12.25');assert.equal(r.closing,'12.25');
+});
+test('60 ledger rejects an oversized range instead of returning a truncated balance',async()=>{
+ // Set-based synthetic fixtures retain every journal/balance constraint.
+ await db.exec('begin');
+ try {
+  await db.query("insert into ym.periods values($1,'2026-01-01',false) on conflict do nothing",[f.org]);
+  await db.query(`with docs as (
+   insert into ym.invoices(org_id,document_uuid,kind,warehouse_id,actor_id,currency,document_date,payment_method,total)
+   select $1,gen_random_uuid(),'sale',$2,$3,'YER','2026-01-15','cash',0.01 from generate_series(1,1000)
+   returning id
+  ) insert into ym.journals(org_id,invoice_id,document_date,period_month,currency,cost_center_id,description)
+   select $1,id,'2026-01-15','2026-01-01','YER',$4,'Synthetic range fixture' from docs`,[f.org,f.warehouse,f.owner,f.center]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit,credit) select org_id,id,$2,0.01,0 from ym.journals where org_id=$1',[f.org,f.accounts.cash]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit,credit) select org_id,id,$2,0,0.01 from ym.journals where org_id=$1',[f.org,f.accounts.revenue]);
+  await db.query("update ym.journals set status='posted' where org_id=$1",[f.org]);
+  await db.exec('commit');
+ } catch(e) {await db.exec('rollback');throw e;}
+ // Refresh planner statistics explicitly after this test-only bulk load.
+ await db.exec('analyze ym.members; analyze ym.invoices; analyze ym.journals; analyze ym.journal_lines');
+ const r=await ledger();assert.equal(r.count,1000);assert.equal(r.closing,'10.00');
+ await reportJournal({amount:'0.01'});
+ await assert.rejects(ledger(),/LEDGER_RANGE_TOO_LARGE/);
 });

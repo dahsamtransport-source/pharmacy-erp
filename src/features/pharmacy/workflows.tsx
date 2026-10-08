@@ -20,13 +20,14 @@ import { permissions } from "@/lib/pharmacy/contracts";
 import { ApiFailure, friendlyError } from "@/lib/pharmacy/api";
 import { createTransactions } from "@/lib/pharmacy/transactions";
 import {
-  decimalUnits,
+  accountingDecimal,
   formatAmount,
-  minorUnits,
+  accountingUnits,
   purchaseLineTotal,
 } from "@/lib/pharmacy/money";
 import { useRemote, useOnline } from "@/hooks/use-remote";
 import { Dialog, Empty, ErrorBox, Skeleton } from "./ui";
+import type { SaleDraft } from "@/lib/pharmacy/assistant";
 export interface WorkflowProps {
   api: PharmacyApi | null;
   workspace?: Workspace;
@@ -171,11 +172,13 @@ function Catalog({
     </section>
   );
 }
-export function POS(props: WorkflowProps) {
+export function POS(props: WorkflowProps & { draft?: SaleDraft }) {
   const { api, workspace, warehouse, userId, onReceipt, notify } = props;
   const online = useOnline();
-  const [cart, setCart] = useState<Line[]>([]);
-  const [payment, setPayment] = useState<"cash" | "bank">("cash");
+  const [cart, setCart] = useState<Line[]>(() => props.draft?.lines ?? []);
+  const [payment, setPayment] = useState<"cash" | "bank">(
+    props.draft?.payment ?? "cash",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -198,7 +201,7 @@ export function POS(props: WorkflowProps) {
     [api, workspace, userId],
   );
   const total = cart.reduce(
-    (sum, l) => sum + minorUnits(l.unit.selling_price) * BigInt(l.quantity),
+    (sum, l) => sum + accountingUnits(l.unit.selling_price) * BigInt(l.quantity),
     0n,
   );
   const add = (unit: Unit) => {
@@ -354,7 +357,7 @@ export function POS(props: WorkflowProps) {
             <div className="total-line">
               <span>الإجمالي التقديري</span>
               <strong dir="ltr">
-                {formatAmount(decimalUnits(total))} {workspace?.currency}
+                {formatAmount(accountingDecimal(total))} {workspace?.currency}
               </strong>
             </div>
             <p className="field-note">
@@ -569,7 +572,7 @@ export function PurchaseReceipt(props: WorkflowProps) {
                       <td>{l.cost}</td>
                       <td>
                         {formatAmount(
-                          decimalUnits(purchaseLineTotal(l.cost, l.quantity)),
+                          accountingDecimal(purchaseLineTotal(l.cost, l.quantity)),
                         )}
                       </td>
                       <td>
@@ -601,7 +604,7 @@ export function PurchaseReceipt(props: WorkflowProps) {
           <div className="total-line">
             <span>إجمالي الاستلام</span>
             <strong>
-              {formatAmount(decimalUnits(total))} {workspace?.currency}
+              {formatAmount(accountingDecimal(total))} {workspace?.currency}
             </strong>
           </div>
           <button

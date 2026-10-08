@@ -82,6 +82,7 @@ export const apiFixture = (): PharmacyApi => ({
     .fn()
     .mockResolvedValue({ from: "2026-09-01", to: "2026-09-20", accounts: [] }),
   reportOptions: vi.fn().mockResolvedValue([]),
+  ledger: vi.fn().mockRejectedValue(new Error("No ledger fixture supplied")),
   statement: vi
     .fn()
     .mockRejectedValue(new Error("No statement fixture supplied")),

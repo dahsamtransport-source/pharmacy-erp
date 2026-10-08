@@ -12,7 +12,7 @@ import {
 import type { PharmacyApi, Workspace } from "@/lib/pharmacy/contracts";
 import { permissions } from "@/lib/pharmacy/contracts";
 import { friendlyError } from "@/lib/pharmacy/api";
-import { formatAmount, minorUnits } from "@/lib/pharmacy/money";
+import { formatAmount, accountingUnits } from "@/lib/pharmacy/money";
 import {
   accountKinds,
   accountPeriodAmount,
@@ -25,6 +25,7 @@ import {
 } from "@/lib/pharmacy/financial";
 import { useOnline, useRemote } from "@/hooks/use-remote";
 import { Empty, ErrorBox, Skeleton } from "@/features/pharmacy/ui";
+import { AccountLedger } from "@/features/pharmacy/AccountLedger";
 
 interface Props {
   api: PharmacyApi | null;
@@ -67,6 +68,7 @@ function ReportWorkspace({
   });
   const [range, setRange] = useState(draft);
   const [error, setError] = useState("");
+  const [ledgerAccount, setLedgerAccount] = useState<string | null>(null);
   const optionsLoad = useCallback(
     () => api.reportOptions(workspace.id),
     [api, workspace.id],
@@ -306,7 +308,10 @@ function ReportWorkspace({
             </p>
           )}
           {tab === "trial" ? (
-            <TrialBalance report={report} />
+            <TrialBalance
+              report={report}
+              onAccount={(id) => setLedgerAccount(id)}
+            />
           ) : (
             <IncomeStatement report={report} />
           )}
@@ -324,6 +329,16 @@ function ReportWorkspace({
       ) : (
         <Empty title="لم تتوفر بيانات التقرير" />
       )}
+      {ledgerAccount && report && (
+        <AccountLedger
+          key={`${workspace.id}:${ledgerAccount}:${JSON.stringify(range)}`}
+          api={api}
+          org={workspace.id}
+          account={ledgerAccount}
+          range={range}
+          onClose={() => setLedgerAccount(null)}
+        />
+      )}
     </div>
   );
 }
@@ -335,7 +350,13 @@ const balanceFields = [
   "closing_debit",
   "closing_credit",
 ] as const;
-function TrialBalance({ report }: { report: FinancialStatement }) {
+function TrialBalance({
+  report,
+  onAccount,
+}: {
+  report: FinancialStatement;
+  onAccount: (id: string) => void;
+}) {
   const totals = report.totals;
   return (
     <>
@@ -379,7 +400,15 @@ function TrialBalance({ report }: { report: FinancialStatement }) {
                 <td>
                   <bdi>{r.code}</bdi>
                 </td>
-                <th scope="row">{r.name}</th>
+                <th scope="row">
+                  <button
+                    className="text-button ledger-link"
+                    onClick={() => onAccount(r.id)}
+                    aria-label={`كشف حركة ${r.name}`}
+                  >
+                    {r.name}
+                  </button>
+                </th>
                 <td>{accountKinds[r.kind]}</td>
                 {balanceFields.map((field) => (
                   <td className="money-cell" key={field}>
@@ -456,10 +485,10 @@ function IncomeGroup({
 }
 function IncomeStatement({ report }: { report: FinancialStatement }) {
   const active = report.accounts.filter(
-    (r) => minorUnits(r.debit) !== 0n || minorUnits(r.credit) !== 0n,
+    (r) => accountingUnits(r.debit) !== 0n || accountingUnits(r.credit) !== 0n,
   );
   const s = report.income,
-    loss = minorUnits(s.net_income) < 0n;
+    loss = accountingUnits(s.net_income) < 0n;
   return (
     <div className="income-statement">
       <IncomeGroup

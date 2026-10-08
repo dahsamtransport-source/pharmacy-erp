@@ -136,6 +136,22 @@ test("redacts database URLs, API keys and JWTs from diagnostic messages", () => 
   for (const secret of ["password", "sensitive", "example", "eyJ"])
     assert.ok(!result.includes(secret));
 });
+test("redacts signed download URLs from Docker failure diagnostics", () => {
+  const message =
+    "download https://cdn.example.test/layer?Policy=opaque-capability&Signature=private-signature&Key-Pair-Id=key failed";
+  assert.equal(
+    redact(message),
+    "download https://cdn.example.test/layer?[signed query hidden] failed",
+  );
+  assert.equal(
+    redact("https://cdn.example.test/layer?X-Amz-Credential=sensitive"),
+    "https://cdn.example.test/layer?[signed query hidden]",
+  );
+  assert.equal(
+    redact("https://example.test/help?page=2"),
+    "https://example.test/help?page=2",
+  );
+});
 test("training state is restricted to the expected project and six synthetic roles", () => {
   const state = {
     version: 1,
