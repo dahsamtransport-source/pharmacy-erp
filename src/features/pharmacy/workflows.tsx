@@ -20,9 +20,9 @@ import { permissions } from "@/lib/pharmacy/contracts";
 import { ApiFailure, friendlyError } from "@/lib/pharmacy/api";
 import { createTransactions } from "@/lib/pharmacy/transactions";
 import {
-  decimalUnits,
+  accountingDecimal,
   formatAmount,
-  minorUnits,
+  accountingUnits,
   purchaseLineTotal,
 } from "@/lib/pharmacy/money";
 import { useRemote, useOnline } from "@/hooks/use-remote";
@@ -201,7 +201,7 @@ export function POS(props: WorkflowProps & { draft?: SaleDraft }) {
     [api, workspace, userId],
   );
   const total = cart.reduce(
-    (sum, l) => sum + minorUnits(l.unit.selling_price) * BigInt(l.quantity),
+    (sum, l) => sum + accountingUnits(l.unit.selling_price) * BigInt(l.quantity),
     0n,
   );
   const add = (unit: Unit) => {
@@ -357,7 +357,7 @@ export function POS(props: WorkflowProps & { draft?: SaleDraft }) {
             <div className="total-line">
               <span>الإجمالي التقديري</span>
               <strong dir="ltr">
-                {formatAmount(decimalUnits(total))} {workspace?.currency}
+                {formatAmount(accountingDecimal(total))} {workspace?.currency}
               </strong>
             </div>
             <p className="field-note">
@@ -572,7 +572,7 @@ export function PurchaseReceipt(props: WorkflowProps) {
                       <td>{l.cost}</td>
                       <td>
                         {formatAmount(
-                          decimalUnits(purchaseLineTotal(l.cost, l.quantity)),
+                          accountingDecimal(purchaseLineTotal(l.cost, l.quantity)),
                         )}
                       </td>
                       <td>
@@ -604,7 +604,7 @@ export function PurchaseReceipt(props: WorkflowProps) {
           <div className="total-line">
             <span>إجمالي الاستلام</span>
             <strong>
-              {formatAmount(decimalUnits(total))} {workspace?.currency}
+              {formatAmount(accountingDecimal(total))} {workspace?.currency}
             </strong>
           </div>
           <button

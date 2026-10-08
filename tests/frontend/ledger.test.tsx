@@ -103,6 +103,18 @@ it("empty history and large signed balances retain exact decimals", () => {
   expect(ledgerSchema.parse(r).closing).toBe("-90071992547409.93");
 });
 
+it("accepts hosted four-decimal ledgers and rejects a one-ten-thousandth imbalance", () => {
+  const r = ledgerFixture();
+  r.opening = "0.0000";
+  r.debit = r.entries[0].debit = r.entries[0].balance = "0.0003";
+  r.credit = r.entries[1].credit = "0.0002";
+  r.closing = r.entries[1].balance = "0.0001";
+  expect(ledgerSchema.safeParse(r).success).toBe(true);
+  expect(ledgerCsv(r)).toContain('"0.0001"');
+  r.closing = "0.0000";
+  expect(ledgerSchema.safeParse(r).success).toBe(false);
+});
+
 it("ledger CSV keeps Arabic, precision and references while neutralizing spreadsheet formulas", () => {
   const r = ledgerFixture();
   r.account.code = "=HYPERLINK(1)";

@@ -7,6 +7,8 @@ import {
   purchaseLineTotal,
   percentChange,
   formatAmount,
+  accountingUnits,
+  accountingDecimal,
 } from "@/lib/pharmacy/money";
 import { apiFixture, ids, receipt } from "./fixtures";
 const input = {
@@ -31,7 +33,16 @@ describe("financial arithmetic and durable operation references", () => {
   it("uses integer minor units, including negative fractional reports", () => {
     expect(decimalUnits(minorUnits("0.10") + minorUnits("0.20"))).toBe("0.30");
     expect(formatAmount("-0.01")).toContain("-0.01");
-    expect(purchaseLineTotal("1.2345", 3)).toBe(370n);
+    expect(purchaseLineTotal("1.2345", 3)).toBe(37035n);
+    expect(accountingDecimal(purchaseLineTotal("1.2345", 3))).toBe("3.7035");
+    expect(
+      accountingDecimal(
+        accountingUnits("90071992547409.9999") + accountingUnits("0.0001"),
+      ),
+    ).toBe("90071992547410.00");
+    expect(formatAmount("-0.0001")).toContain("-0.0001");
+    expect(formatAmount("1.2345")).toContain("1.2345");
+    expect(percentChange("0.0002", "0.0001")).toBe("+100%");
   });
   it("does not invent a growth percentage when yesterday is zero", () => {
     expect(percentChange("12500", "0")).toBeNull();

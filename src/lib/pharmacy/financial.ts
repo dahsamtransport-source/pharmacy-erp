@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { decimalUnits, minorUnits } from "./money";
+import { accountingDecimal, accountingUnits } from "./money";
 
-const moneyPattern = /^-?\d+(\.\d{1,2})?$/;
+const moneyPattern = /^-?\d+(\.\d{1,4})?$/;
 const money = z.string().regex(moneyPattern);
 const nonnegativeMoney = money.refine(
-  (value) => moneyPattern.test(value) && minorUnits(value) >= 0n,
+  (value) => moneyPattern.test(value) && accountingUnits(value) >= 0n,
 );
 const date = z.iso.date();
 export const timezoneSchema = z.string().refine((value) => {
@@ -123,27 +123,27 @@ export const financialStatementSchema = statementShape.superRefine(
     for (const r of s.accounts) {
       if (seen.has(r.id)) fail();
       seen.add(r.id);
-      const opening = minorUnits(r.opening),
-        closing = minorUnits(r.closing);
-      const movement = minorUnits(r.debit) - minorUnits(r.credit);
+      const opening = accountingUnits(r.opening),
+        closing = accountingUnits(r.closing);
+      const movement = accountingUnits(r.debit) - accountingUnits(r.credit);
       if (
         opening + movement !== closing ||
-        minorUnits(r.opening_debit) !== (opening > 0n ? opening : 0n) ||
-        minorUnits(r.opening_credit) !== (opening < 0n ? -opening : 0n) ||
-        minorUnits(r.closing_debit) !== (closing > 0n ? closing : 0n) ||
-        minorUnits(r.closing_credit) !== (closing < 0n ? -closing : 0n) ||
-        minorUnits(r.normal_balance) !==
+        accountingUnits(r.opening_debit) !== (opening > 0n ? opening : 0n) ||
+        accountingUnits(r.opening_credit) !== (opening < 0n ? -opening : 0n) ||
+        accountingUnits(r.closing_debit) !== (closing > 0n ? closing : 0n) ||
+        accountingUnits(r.closing_credit) !== (closing < 0n ? -closing : 0n) ||
+        accountingUnits(r.normal_balance) !==
           (["asset", "expense"].includes(r.kind) ? closing : -closing)
       )
         fail();
-      for (const f of fields) totals[f] += minorUnits(r[f]);
+      for (const f of fields) totals[f] += accountingUnits(r[f]);
       if (r.kind === "income") revenue -= movement;
       if (r.kind === "expense") {
         if (r.is_cogs) cogs += movement;
         else expenses += movement;
       }
     }
-    for (const f of fields) if (totals[f] !== minorUnits(s.totals[f])) fail();
+    for (const f of fields) if (totals[f] !== accountingUnits(s.totals[f])) fail();
     const balanced =
       totals.opening_debit === totals.opening_credit &&
       totals.debit === totals.credit &&
@@ -163,7 +163,7 @@ export const financialStatementSchema = statementShape.superRefine(
       net_income: revenue - cogs - expenses,
     };
     for (const f of Object.keys(income) as (keyof typeof income)[])
-      if (income[f] !== minorUnits(s.income[f])) fail();
+      if (income[f] !== accountingUnits(s.income[f])) fail();
   },
 );
 
@@ -179,12 +179,12 @@ export function validReportRange(range: ReportRange): boolean {
   );
 }
 export function accountPeriodAmount(row: StatementAccount): string {
-  const net = minorUnits(row.debit) - minorUnits(row.credit);
-  return decimalUnits(row.kind === "income" ? -net : net);
+  const net = accountingUnits(row.debit) - accountingUnits(row.credit);
+  return accountingDecimal(row.kind === "income" ? -net : net);
 }
 // Neutralize spreadsheet formulas in textual fields, including leading whitespace/control characters.
 function csvText(value: string): string {
-  const numericLiteral = /^-?\d+(\.\d{1,2})?$/.test(value);
+  const numericLiteral = /^-?\d+(\.\d{1,4})?$/.test(value);
   const safe =
     !numericLiteral && /^[\s\u0000-\u001f]*[=+\-@]/.test(value)
       ? `'${value}`
