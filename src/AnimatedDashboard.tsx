@@ -13,7 +13,8 @@ import {
 import type { Dashboard } from "@/lib/pharmacy/contracts";
 import { formatAmount, percentChange } from "@/lib/pharmacy/money";
 import { Empty, Skeleton } from "@/features/pharmacy/ui";
-export type Page = "dashboard" | "pos" | "purchases" | "inventory" | "reports";
+export type Page =
+  "dashboard" | "pos" | "purchases" | "inventory" | "reports" | "assistant";
 export interface DashboardProps {
   data?: Dashboard;
   currency?: string;

@@ -12,7 +12,7 @@ import {
 import type { PharmacyApi, Workspace } from "@/lib/pharmacy/contracts";
 import { permissions } from "@/lib/pharmacy/contracts";
 import { friendlyError } from "@/lib/pharmacy/api";
-import { formatAmount, minorUnits } from "@/lib/pharmacy/money";
+import { formatAmount, accountingUnits } from "@/lib/pharmacy/money";
 import {
   accountKinds,
   accountPeriodAmount,
@@ -485,10 +485,10 @@ function IncomeGroup({
 }
 function IncomeStatement({ report }: { report: FinancialStatement }) {
   const active = report.accounts.filter(
-    (r) => minorUnits(r.debit) !== 0n || minorUnits(r.credit) !== 0n,
+    (r) => accountingUnits(r.debit) !== 0n || accountingUnits(r.credit) !== 0n,
   );
   const s = report.income,
-    loss = minorUnits(s.net_income) < 0n;
+    loss = accountingUnits(s.net_income) < 0n;
   return (
     <div className="income-statement">
       <IncomeGroup

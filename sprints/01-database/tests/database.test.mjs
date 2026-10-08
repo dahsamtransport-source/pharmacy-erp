@@ -1,5 +1,6 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { openDatabase, migrate, fixture, uuid, native } from './harness.mjs';
 let db, f;
 before(async () => { db = await openDatabase(); await migrate(db); });
@@ -7,6 +8,20 @@ after(async () => { if (db) await db.close(); });
 beforeEach(async () => { f = await fixture(db); });
 const scalar = async (sql, args=[]) => Object.values((await db.query(sql,args)).rows[0])[0];
 const qty = async () => Number(await scalar('select coalesce(sum(quantity),0) from ym.batches where org_id=$1',[f.org]));
+
+test('63 baseline repair preserves a newer definer guard including its ACL and settings', async () => {
+ await db.exec('begin');
+ try {
+  // Sentinel models an independently hardened deployment. Never replace its body.
+  await db.exec("create or replace function ym_private.balance_check() returns trigger language plpgsql security definer set search_path='' as $$ begin raise exception 'NEWER_GUARD_SENTINEL'; end $$");
+  const snapshot = () => db.query("select pg_get_functiondef(oid) as definition,proacl::text as acl,proconfig from pg_proc where oid='ym_private.balance_check()'::regprocedure");
+  const before = (await snapshot()).rows;
+  const migration = await readFile(new URL('../supabase/migrations/20261008013715_ympharma_deferred_balance_guard.sql',import.meta.url),'utf8');
+  await db.exec(migration);
+  assert.deepEqual((await snapshot()).rows,before);
+ } finally { await db.exec('rollback'); }
+ await f.purchase(2); await f.sale(1);
+});
 
 test('01 all tables have RLS; no PUBLIC entrypoint/helper or anonymous schema access', async () => {
  assert.equal(Number(await scalar("select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='ym' and c.relkind='r' and not c.relrowsecurity")),0);
@@ -22,6 +37,47 @@ test('02 purchase and sale compute totals and balanced four-line sale journal', 
  const r=await db.query('select sum(debit) d,sum(credit) c,count(*) n from ym.journal_lines where org_id=$1 and journal_id=(select id from ym.journals where org_id=$1 and invoice_id=$2)',[f.org,sale]);
  assert.equal(r.rows[0].d,r.rows[0].c); assert.equal(Number(r.rows[0].n),4); assert.equal(Number(r.rows[0].d),42);
  assert.equal(Number(await scalar('select inventory_value from ym.valuations where org_id=$1',[f.org])),68);
+});
+
+test('64 shared assistant admission enforces actor/global caps and rejects foreign scope',async()=>{
+ const claim=(actor,org=f.org,warehouse=f.warehouse)=>db.user(actor,()=>scalar('select ym_api.claim_assistant_budget($1,$2)',[org,warehouse]));
+ await assert.rejects(claim(f.outsider),/FORBIDDEN/);
+ await assert.rejects(claim(f.cashier,uuid()),/FORBIDDEN/);
+ await assert.rejects(claim(f.cashier,f.org,uuid()),/FORBIDDEN/);
+ for(const actor of [f.owner,f.manager,f.cashier]) {
+  for(let i=0;i<6;i++) assert.equal(await claim(actor),true);
+  assert.equal(await claim(actor),false);
+ }
+ assert.equal(await claim(f.accountant),true);assert.equal(await claim(f.accountant),true);
+ assert.equal(await claim(f.inventory),false);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_api.claim_assistant_budget(uuid,uuid)','execute')"),false);
+ await assert.rejects(db.user(f.owner,()=>db.query('select * from ym_private.assistant_request_windows')),/permission denied/);
+ await db.query("update ym_private.assistant_request_windows set started_at=clock_timestamp()-interval '61 seconds'");
+ assert.equal(await claim(f.cashier),true);
+});
+test('61 deferred balance guard commits authorized cashier/inventory operations without exposing journals', async () => {
+ await f.purchase(3); await f.sale(1);
+ for (const actor of [f.cashier,f.inventory]) await db.user(actor,async()=>{
+  assert.equal(Number(await scalar('select count(*) from ym.journals where org_id=$1',[f.org])),0);
+  assert.equal(Number(await scalar('select count(*) from ym.journal_lines where org_id=$1',[f.org])),0);
+ });
+ assert.equal(await scalar("select has_function_privilege('authenticated','ym_private.balance_check()','execute')"),false);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_private.balance_check()','execute')"),false);
+ assert.equal(await scalar("select has_function_privilege('service_role','ym_private.balance_check()','execute')"),false);
+});
+test('62 unbalanced journal still rolls back when COMMIT runs as a cashier with no journal visibility', async () => {
+ await db.exec('begin');
+ const invoice=uuid(),journal=uuid();
+ try {
+  await db.query("insert into ym.invoices(org_id,id,document_uuid,kind,warehouse_id,actor_id,currency,document_date,payment_method,total) values($1,$2,$3,'sale',$4,$5,'YER',current_date,'cash',1)",[f.org,invoice,uuid(),f.warehouse,f.cashier]);
+  await db.query("insert into ym.journals(org_id,id,invoice_id,document_date,period_month,currency,cost_center_id,description) values($1,$2,$3,current_date,date_trunc('month',current_date)::date,'YER',$4,'invalid low-role commit')",[f.org,journal,invoice,f.center]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit) values($1,$2,$3,1)',[f.org,journal,f.accounts.cash]);
+  await db.query("update ym.journals set status='posted' where org_id=$1 and id=$2",[f.org,journal]);
+  await db.exec('set local role authenticated');
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)",[f.cashier]);
+  await assert.rejects(db.exec('commit'),/UNBALANCED_OR_UNPOSTED/);
+ } finally {await db.exec('rollback');}
+ assert.equal(Number(await scalar('select count(*) from ym.invoices where org_id=$1 and id=$2',[f.org,invoice])),0);
 });
 test('03 FEFO consumes nearest expiry and traces exact batches', async () => {
  await f.purchase(10); await f.purchase(2,{batch:'EARLY',expiry:'2098-01-01'}); const sale=await f.sale(3);

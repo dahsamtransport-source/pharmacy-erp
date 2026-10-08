@@ -9,6 +9,7 @@ import {
 } from "react";
 import { browserClient, pharmacyApi, ApiFailure } from "@/lib/pharmacy/api";
 import type { PharmacyApi, Workspace } from "@/lib/pharmacy/contracts";
+import { requestAssistant, type AskAssistant } from "@/lib/pharmacy/assistant";
 type AuthState =
   | {
       status: "unconfigured" | "loading" | "anonymous" | "error";
@@ -18,6 +19,7 @@ type AuthState =
 interface SessionValue {
   auth: AuthState;
   api: PharmacyApi | null;
+  askAssistant: AskAssistant;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   refresh(): void;
@@ -25,13 +27,21 @@ interface SessionValue {
 const Context = createContext<SessionValue | null>(null);
 export function PharmacySession({ children }: { children: ReactNode }) {
   const [client] = useState(browserClient);
-  const api = useMemo(() => (client ? pharmacyApi(client) : null), [client]);
+  const contextApi = useMemo(
+    () => (client ? pharmacyApi(client) : null),
+    [client],
+  );
   const [auth, setAuth] = useState<AuthState>({
     status: client ? "loading" : "unconfigured",
   });
   const [revision, setRevision] = useState(0);
+  const actor = auth.status === "ready" ? auth.userId : undefined;
+  const api = useMemo(
+    () => (client && actor ? pharmacyApi(client, actor) : null),
+    [client, actor],
+  );
   useEffect(() => {
-    if (!client || !api) return;
+    if (!client || !contextApi) return;
     let active = true;
     let sequence = 0;
     const unsubscribe = client.auth.onAuthStateChange((_event, session) => {
@@ -55,7 +65,7 @@ export function PharmacySession({ children }: { children: ReactNode }) {
               if (active && run === sequence) setAuth({ status: "anonymous" });
               return;
             }
-            const workspaces = await api.context();
+            const workspaces = await contextApi.context();
             const display = data.user.user_metadata?.full_name;
             if (active && run === sequence)
               setAuth({
@@ -79,10 +89,22 @@ export function PharmacySession({ children }: { children: ReactNode }) {
       active = false;
       unsubscribe.unsubscribe();
     };
-  }, [client, api, revision]);
+  }, [client, contextApi, revision]);
   const value: SessionValue = {
     auth,
     api,
+    askAssistant: async (org, warehouse, input, signal) => {
+      if (!client || auth.status !== "ready")
+        throw new ApiFailure("سجّل الدخول أولًا.");
+      return requestAssistant(
+        client,
+        auth.userId,
+        org,
+        warehouse,
+        input,
+        signal,
+      );
+    },
     refresh: () => setRevision((n) => n + 1),
     signIn: async (email, password) => {
       if (!client) throw new ApiFailure("خدمة تسجيل الدخول غير مهيأة.");

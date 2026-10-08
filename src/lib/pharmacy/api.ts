@@ -125,8 +125,20 @@ export function browserClient(): SupabaseClient<Database> | null {
     },
   });
 }
-export function pharmacyApi(client: SupabaseClient<Database>): PharmacyApi {
+export function pharmacyApi(
+  client: SupabaseClient<Database>,
+  actor?: string,
+): PharmacyApi {
   const api = client.schema("ym_api");
+  async function mutationToken() {
+    const { data, error } = await client.auth.getSession();
+    if (!actor || error || !data.session || data.session.user.id !== actor)
+      throw new ApiFailure(
+        "تغيّر الحساب. أعد فتح العملية من الحساب الحالي.",
+        true,
+      );
+    return data.session.access_token;
+  }
   return {
     context: () =>
       read(api.rpc("workspace_context", {}), z.array(workspaceSchema)),
@@ -197,28 +209,36 @@ export function pharmacyApi(client: SupabaseClient<Database>): PharmacyApi {
             s.include_zero === range.includeZero,
         ),
       ),
-    sell: (p_org, p_request, input) =>
-      read(
-        api.rpc("process_pharmacy_sale", {
-          p_org,
-          p_request,
-          p_warehouse: input.warehouse,
-          p_items: input.items.map((x) => ({ ...x })),
-          p_payment: input.payment,
-        }),
+    sell: async (p_org, p_request, input) => {
+      const token = await mutationToken();
+      return read(
+        api
+          .rpc("process_pharmacy_sale", {
+            p_org,
+            p_request,
+            p_warehouse: input.warehouse,
+            p_items: input.items.map((x) => ({ ...x })),
+            p_payment: input.payment,
+          })
+          .setHeader("Authorization", `Bearer ${token}`),
         z.uuid(),
-      ),
-    purchase: (p_org, p_request, input) =>
-      read(
-        api.rpc("receive_purchase_order", {
-          p_org,
-          p_request,
-          p_warehouse: input.warehouse,
-          p_supplier: input.supplier,
-          p_reference: input.reference,
-          p_items: input.items.map((x) => ({ ...x })),
-        }),
+      );
+    },
+    purchase: async (p_org, p_request, input) => {
+      const token = await mutationToken();
+      return read(
+        api
+          .rpc("receive_purchase_order", {
+            p_org,
+            p_request,
+            p_warehouse: input.warehouse,
+            p_supplier: input.supplier,
+            p_reference: input.reference,
+            p_items: input.items.map((x) => ({ ...x })),
+          })
+          .setHeader("Authorization", `Bearer ${token}`),
         z.uuid(),
-      ),
+      );
+    },
   };
 }

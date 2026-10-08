@@ -171,6 +171,10 @@ export interface Database {
         p_center: string | null;
         p_include_zero: boolean;
       }>;
+      claim_assistant_budget: {
+        Args: { p_org: string; p_warehouse: string };
+        Returns: boolean;
+      };
       process_pharmacy_sale: {
         Args: {
           p_org: string;

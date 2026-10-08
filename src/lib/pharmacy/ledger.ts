@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { minorUnits } from "./money";
+import { accountingUnits } from "./money";
 import { validReportRange } from "./financial";
 
-const moneyPattern = /^-?\d+(\.\d{1,2})?$/;
+const moneyPattern = /^-?\d+(\.\d{1,4})?$/;
 const money = z.string().regex(moneyPattern);
 export const ledgerSchema = z
   .object({
@@ -63,14 +63,14 @@ export const ledgerSchema = z
       ].every((v) => moneyPattern.test(v))
     )
       return;
-    let balance = minorUnits(r.opening),
+    let balance = accountingUnits(r.opening),
       debit = 0n,
       credit = 0n;
     const ids = new Set<string>();
     let lastDate = r.from;
     for (const e of r.entries) {
-      const d = minorUnits(e.debit),
-        c = minorUnits(e.credit);
+      const d = accountingUnits(e.debit),
+        c = accountingUnits(e.credit);
       if (
         d < 0n ||
         c < 0n ||
@@ -85,13 +85,13 @@ export const ledgerSchema = z
       debit += d;
       credit += c;
       balance += d - c;
-      if (balance !== minorUnits(e.balance)) fail();
+      if (balance !== accountingUnits(e.balance)) fail();
     }
     if (
       r.count !== r.entries.length ||
-      debit !== minorUnits(r.debit) ||
-      credit !== minorUnits(r.credit) ||
-      balance !== minorUnits(r.closing)
+      debit !== accountingUnits(r.debit) ||
+      credit !== accountingUnits(r.credit) ||
+      balance !== accountingUnits(r.closing)
     )
       fail();
   });

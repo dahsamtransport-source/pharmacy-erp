@@ -11,7 +11,8 @@ export async function openDatabase() {
     if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || url.pathname !== '/ympharma_test' || process.env.YMPHARMA_DISPOSABLE_TEST_DB !== 'yes') {
       throw new Error('Tests require an explicitly disposable localhost /ympharma_test database.');
     }
-    backend = new pg.Client({ connectionString: url.toString() });
+    // A stopped/unreachable local container must fail instead of hanging the entire suite.
+    backend = new pg.Client({ connectionString: url.toString(), connectionTimeoutMillis: 10000 });
     await backend.connect();
   } else backend = new PGlite();
   const safe = async (fn) => { try { return await fn(); } catch(e) { throw new Error(e.message); } };
