@@ -95,7 +95,7 @@ export default function AnimatedDashboard({
   return (
     <>
       <motion.header
-        initial={{ opacity: 0, y: reduce ? 0 : -10 }}
+        initial={reduce ? false : { opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="page-heading"
       >
@@ -121,7 +121,7 @@ export default function AnimatedDashboard({
       </motion.header>
       <motion.div
         variants={containerVariants}
-        initial="hidden"
+        initial={reduce ? false : "hidden"}
         animate="show"
         className="stat-grid"
       >
