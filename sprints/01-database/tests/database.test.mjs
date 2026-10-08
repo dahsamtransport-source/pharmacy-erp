@@ -1,5 +1,6 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { openDatabase, migrate, fixture, uuid, native } from './harness.mjs';
 let db, f;
 before(async () => { db = await openDatabase(); await migrate(db); });
@@ -7,6 +8,20 @@ after(async () => { if (db) await db.close(); });
 beforeEach(async () => { f = await fixture(db); });
 const scalar = async (sql, args=[]) => Object.values((await db.query(sql,args)).rows[0])[0];
 const qty = async () => Number(await scalar('select coalesce(sum(quantity),0) from ym.batches where org_id=$1',[f.org]));
+
+test('63 baseline repair preserves a newer definer guard including its ACL and settings', async () => {
+ await db.exec('begin');
+ try {
+  // Sentinel models an independently hardened deployment. Never replace its body.
+  await db.exec("create or replace function ym_private.balance_check() returns trigger language plpgsql security definer set search_path='' as $$ begin raise exception 'NEWER_GUARD_SENTINEL'; end $$");
+  const snapshot = () => db.query("select pg_get_functiondef(oid) as definition,proacl::text as acl,proconfig from pg_proc where oid='ym_private.balance_check()'::regprocedure");
+  const before = (await snapshot()).rows;
+  const migration = await readFile(new URL('../supabase/migrations/20261008013715_ympharma_deferred_balance_guard.sql',import.meta.url),'utf8');
+  await db.exec(migration);
+  assert.deepEqual((await snapshot()).rows,before);
+ } finally { await db.exec('rollback'); }
+ await f.purchase(2); await f.sale(1);
+});
 
 test('01 all tables have RLS; no PUBLIC entrypoint/helper or anonymous schema access', async () => {
  assert.equal(Number(await scalar("select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='ym' and c.relkind='r' and not c.relrowsecurity")),0);

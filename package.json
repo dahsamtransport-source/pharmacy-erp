@@ -20,6 +20,7 @@
     "local:migrate": "node scripts/local-supabase.mjs migrate",
     "local:smoke": "node scripts/local-supabase.mjs smoke",
     "local:test-db": "node scripts/local-postgres-tests.mjs",
+    "local:test-assistant": "node scripts/local-assistant-services.mjs",
     "local:dev": "node scripts/local-supabase.mjs dev",
     "test:local-tools": "node --test tests/local/*.test.mjs"
   },
