@@ -4,14 +4,14 @@ project_id = "ympharma-local-review"
 
 [api]
 enabled = true
-port = 54321
+port = 55321
 schemas = ["ym_api"]
 extra_search_path = ["extensions"]
 max_rows = 1000
 
 [db]
-port = 54322
-shadow_port = 54320
+port = 55322
+shadow_port = 55320
 major_version = 17
 
 [db.migrations]
@@ -27,13 +27,13 @@ enabled = false
 
 [studio]
 enabled = true
-port = 54323
+port = 55323
 api_url = "http://127.0.0.1"
 openai_api_key = ""
 
 [local_smtp]
 enabled = true
-port = 54324
+port = 55324
 
 [storage]
 enabled = true
@@ -53,7 +53,9 @@ jwt_expiry = 3600
 enable_signup = false
 
 [auth.email]
-enable_signup = false
+# Enable the email provider for existing training users. Global signup above
+# remains disabled; false here disables password login as well.
+enable_signup = true
 enable_confirmations = false
 
 [edge_runtime]

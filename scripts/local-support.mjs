@@ -112,12 +112,12 @@ export function assertLocalUrl(
       throw new Error("Unexpected local database target.");
   } else if (
     u.protocol !== "http:" ||
-    u.port !== "54321" ||
+    u.port !== "55321" ||
     u.username ||
     u.password ||
     u.pathname !== "/"
   ) {
-    throw new Error("Expected the local API at http://127.0.0.1:54321.");
+    throw new Error("Expected the local API at http://127.0.0.1:55321.");
   }
   return u;
 }
@@ -128,7 +128,7 @@ export function parseStatus(raw) {
     throw new Error("Hosted project links are not accepted by local tooling.");
   const api = assertLocalUrl(s.API_URL);
   const db = assertLocalUrl(s.DB_URL, { database: true });
-  if (db.port !== "54322")
+  if (db.port !== "55322")
     throw new Error("Unexpected local Supabase database port.");
   if (
     typeof s.PUBLISHABLE_KEY !== "string" ||

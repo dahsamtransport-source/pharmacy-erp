@@ -20,8 +20,8 @@ import {
 } from "../../scripts/local-support.mjs";
 
 const statusFixture = () => ({
-  API_URL: "http://127.0.0.1:54321",
-  DB_URL: "postgresql://postgres:localpassword@127.0.0.1:54322/postgres",
+  API_URL: "http://127.0.0.1:55321",
+  DB_URL: "postgresql://postgres:localpassword@127.0.0.1:55322/postgres",
   PUBLISHABLE_KEY: "sb_publishable_unit_fixture",
   SECRET_KEY: "sb_secret_never_emit",
 });
@@ -44,17 +44,17 @@ test("parses the pinned CLI JSON format and exports only browser-safe values", (
 test("rejects hosted, tunneled, query-overridden and unexpected service targets", () => {
   for (const url of [
     "https://example.supabase.co",
-    "http://127.0.0.1.evil.test:54321",
-    "http://127.0.0.1:54321/rest/v1",
-    "http://127.0.0.1:54321?host=example.com",
-    "http://admin:secret@127.0.0.1:54321",
+    "http://127.0.0.1.evil.test:55321",
+    "http://127.0.0.1:55321/rest/v1",
+    "http://127.0.0.1:55321?host=example.com",
+    "http://admin:secret@127.0.0.1:55321",
     "http://127.0.0.1:12345",
   ])
     assert.throws(() => assertLocalUrl(url));
   for (const DB_URL of [
     "postgres://admin:secret@db.example.com:5432/postgres",
-    "postgres://postgres@127.0.0.1:54322/production",
-    "postgres://postgres@127.0.0.1:54322/postgres?host=evil.test",
+    "postgres://postgres@127.0.0.1:55322/production",
+    "postgres://postgres@127.0.0.1:55322/postgres?host=evil.test",
   ])
     assert.throws(() => parseStatus({ ...statusFixture(), DB_URL }));
 });
@@ -110,7 +110,7 @@ test("requires local Docker engine sockets and loopback published ports", () => 
   const container = (HostIp) => [
     {
       NetworkSettings: {
-        Ports: { "5432/tcp": [{ HostIp, HostPort: "54322" }] },
+        Ports: { "5432/tcp": [{ HostIp, HostPort: "55322" }] },
       },
     },
   ];

@@ -12,6 +12,7 @@
     "test:db": "npm test --prefix sprints/01-database",
     "local:doctor": "node scripts/local-supabase.mjs doctor",
     "local:start": "node scripts/local-supabase.mjs start",
+    "local:start-core": "node scripts/local-supabase.mjs start-core",
     "local:stop": "node scripts/local-supabase.mjs stop",
     "local:status": "node scripts/local-supabase.mjs status",
     "local:env": "node scripts/local-supabase.mjs env",
