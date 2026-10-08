@@ -23,6 +23,30 @@ test('02 purchase and sale compute totals and balanced four-line sale journal', 
  assert.equal(r.rows[0].d,r.rows[0].c); assert.equal(Number(r.rows[0].n),4); assert.equal(Number(r.rows[0].d),42);
  assert.equal(Number(await scalar('select inventory_value from ym.valuations where org_id=$1',[f.org])),68);
 });
+test('61 deferred balance guard commits authorized cashier/inventory operations without exposing journals', async () => {
+ await f.purchase(3); await f.sale(1);
+ for (const actor of [f.cashier,f.inventory]) await db.user(actor,async()=>{
+  assert.equal(Number(await scalar('select count(*) from ym.journals where org_id=$1',[f.org])),0);
+  assert.equal(Number(await scalar('select count(*) from ym.journal_lines where org_id=$1',[f.org])),0);
+ });
+ assert.equal(await scalar("select has_function_privilege('authenticated','ym_private.balance_check()','execute')"),false);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_private.balance_check()','execute')"),false);
+ assert.equal(await scalar("select has_function_privilege('service_role','ym_private.balance_check()','execute')"),false);
+});
+test('62 unbalanced journal still rolls back when COMMIT runs as a cashier with no journal visibility', async () => {
+ await db.exec('begin');
+ const invoice=uuid(),journal=uuid();
+ try {
+  await db.query("insert into ym.invoices(org_id,id,document_uuid,kind,warehouse_id,actor_id,currency,document_date,payment_method,total) values($1,$2,$3,'sale',$4,$5,'YER',current_date,'cash',1)",[f.org,invoice,uuid(),f.warehouse,f.cashier]);
+  await db.query("insert into ym.journals(org_id,id,invoice_id,document_date,period_month,currency,cost_center_id,description) values($1,$2,$3,current_date,date_trunc('month',current_date)::date,'YER',$4,'invalid low-role commit')",[f.org,journal,invoice,f.center]);
+  await db.query('insert into ym.journal_lines(org_id,journal_id,account_id,debit) values($1,$2,$3,1)',[f.org,journal,f.accounts.cash]);
+  await db.query("update ym.journals set status='posted' where org_id=$1 and id=$2",[f.org,journal]);
+  await db.exec('set local role authenticated');
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)",[f.cashier]);
+  await assert.rejects(db.exec('commit'),/UNBALANCED_OR_UNPOSTED/);
+ } finally {await db.exec('rollback');}
+ assert.equal(Number(await scalar('select count(*) from ym.invoices where org_id=$1 and id=$2',[f.org,invoice])),0);
+});
 test('03 FEFO consumes nearest expiry and traces exact batches', async () => {
  await f.purchase(10); await f.purchase(2,{batch:'EARLY',expiry:'2098-01-01'}); const sale=await f.sale(3);
  const rows=(await db.query('select b.batch_number,a.quantity from ym.allocations a join ym.batches b on b.org_id=a.org_id and b.id=a.batch_id join ym.invoice_lines l on l.org_id=a.org_id and l.id=a.line_id where l.org_id=$1 and l.invoice_id=$2 order by b.batch_number',[f.org,sale])).rows;

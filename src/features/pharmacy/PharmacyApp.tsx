@@ -34,12 +34,14 @@ import { PharmacySession, usePharmacySession } from "./session";
 import { Dialog, ErrorBox } from "./ui";
 import { POS, PurchaseReceipt, ReceiptDialog } from "./workflows";
 import { Inventory, Reports } from "./data-views";
+import { Assistant } from "./Assistant";
 const pageLabels: Record<Page, string> = {
   dashboard: "لوحة التحكم",
   pos: "نقطة البيع",
   purchases: "المشتريات",
   inventory: "المخزون والصلاحية",
   reports: "التقارير المالية",
+  assistant: "مساعد موصل",
 };
 export default function PharmacyApp() {
   return (
@@ -116,6 +118,7 @@ function WorkspaceApp() {
     { page: "purchases" as const, icon: ClipboardList },
     { page: "inventory" as const, icon: Package },
     { page: "reports" as const, icon: ChartNoAxesCombined },
+    { page: "assistant" as const, icon: Activity },
   ].filter(
     (x) =>
       !role ||
@@ -364,6 +367,22 @@ function WorkspaceApp() {
             />
           )}
           <div key={identity} className="view-content">
+            {page === "assistant" && (
+              <Assistant
+                api={effectiveApi}
+                workspace={workspace}
+                warehouse={warehouse}
+                userId={userId}
+                onReceipt={received}
+                notify={setToast}
+                ask={session.askAssistant}
+                openInventory={(search) => {
+                  setStockSearch(search);
+                  navigate("inventory");
+                }}
+                openReports={() => navigate("reports")}
+              />
+            )}
             {page === "dashboard" && (
               <AnimatedDashboard
                 data={data}

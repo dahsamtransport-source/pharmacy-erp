@@ -8,6 +8,7 @@ YmPharma: Arabic pharmacy and accounting workspace. Sprint 2 adds the React UI o
 - [Financial reports verification](sprints/05-financial-reports/TEST_REPORT.md)
 - [Sprint 1 database baseline](sprints/01-database/README.md)
 - [Local Supabase on Docker — Windows/Linux setup](sprints/local-supabase/README.md)
+- [Mawsil assistant integration: behavior, verification and activation limits](docs/MAWSIL_YMPHARMA_INTEGRATION_AR.md)
 
 ```sh
 npm ci

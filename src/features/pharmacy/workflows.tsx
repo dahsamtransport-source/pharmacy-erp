@@ -27,6 +27,7 @@ import {
 } from "@/lib/pharmacy/money";
 import { useRemote, useOnline } from "@/hooks/use-remote";
 import { Dialog, Empty, ErrorBox, Skeleton } from "./ui";
+import type { SaleDraft } from "@/lib/pharmacy/assistant";
 export interface WorkflowProps {
   api: PharmacyApi | null;
   workspace?: Workspace;
@@ -171,11 +172,13 @@ function Catalog({
     </section>
   );
 }
-export function POS(props: WorkflowProps) {
+export function POS(props: WorkflowProps & { draft?: SaleDraft }) {
   const { api, workspace, warehouse, userId, onReceipt, notify } = props;
   const online = useOnline();
-  const [cart, setCart] = useState<Line[]>([]);
-  const [payment, setPayment] = useState<"cash" | "bank">("cash");
+  const [cart, setCart] = useState<Line[]>(() => props.draft?.lines ?? []);
+  const [payment, setPayment] = useState<"cash" | "bank">(
+    props.draft?.payment ?? "cash",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && vitest run --config vitest.server.config.mts",
     "test:db": "npm test --prefix sprints/01-database",
     "local:doctor": "node scripts/local-supabase.mjs doctor",
     "local:start": "node scripts/local-supabase.mjs start",

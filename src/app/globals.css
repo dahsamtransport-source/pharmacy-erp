@@ -21,8 +21,16 @@ body {
 }
 button,
 input,
+textarea,
 select {
   font: inherit;
+}
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 button,
 a,
