@@ -4,12 +4,7 @@ import { pharmacyApi } from "@/lib/pharmacy/api";
 import { isLoopbackDataApi } from "@/lib/pharmacy/connectivity";
 import type { Database } from "@/lib/pharmacy/contracts";
 import { AssistantFailure, type AssistantContext } from "./request-handler";
-export async function authorizeAssistant(
-  token: string,
-  org: string,
-  warehouse: string,
-  signal: AbortSignal,
-): Promise<AssistantContext> {
+function employeeClient(token: string, signal: AbortSignal) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key?.startsWith("sb_publishable_"))
@@ -22,7 +17,7 @@ export async function authorizeAssistant(
   )
     throw new AssistantFailure("ASSISTANT_UNAVAILABLE", 503);
   // Request-local user token, never a service-role client.
-  const client = createClient<Database>(url, key, {
+  return createClient<Database>(url, key, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -37,6 +32,27 @@ export async function authorizeAssistant(
         }),
     },
   });
+}
+export async function claimAssistantBudget(
+  token: string,
+  org: string,
+  warehouse: string,
+  signal: AbortSignal,
+): Promise<boolean> {
+  const { data, error } = await employeeClient(token, signal)
+    .schema("ym_api")
+    .rpc("claim_assistant_budget", { p_org: org, p_warehouse: warehouse });
+  if (error || typeof data !== "boolean")
+    throw new AssistantFailure("ASSISTANT_UNAVAILABLE", 503);
+  return data;
+}
+export async function authorizeAssistant(
+  token: string,
+  org: string,
+  warehouse: string,
+  signal: AbortSignal,
+): Promise<AssistantContext> {
+  const client = employeeClient(token, signal);
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user || data.user.is_anonymous)
     throw new AssistantFailure("UNAUTHORIZED", 401);

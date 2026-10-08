@@ -38,6 +38,23 @@ test('02 purchase and sale compute totals and balanced four-line sale journal', 
  assert.equal(r.rows[0].d,r.rows[0].c); assert.equal(Number(r.rows[0].n),4); assert.equal(Number(r.rows[0].d),42);
  assert.equal(Number(await scalar('select inventory_value from ym.valuations where org_id=$1',[f.org])),68);
 });
+
+test('64 shared assistant admission enforces actor/global caps and rejects foreign scope',async()=>{
+ const claim=(actor,org=f.org,warehouse=f.warehouse)=>db.user(actor,()=>scalar('select ym_api.claim_assistant_budget($1,$2)',[org,warehouse]));
+ await assert.rejects(claim(f.outsider),/FORBIDDEN/);
+ await assert.rejects(claim(f.cashier,uuid()),/FORBIDDEN/);
+ await assert.rejects(claim(f.cashier,f.org,uuid()),/FORBIDDEN/);
+ for(const actor of [f.owner,f.manager,f.cashier]) {
+  for(let i=0;i<6;i++) assert.equal(await claim(actor),true);
+  assert.equal(await claim(actor),false);
+ }
+ assert.equal(await claim(f.accountant),true);assert.equal(await claim(f.accountant),true);
+ assert.equal(await claim(f.inventory),false);
+ assert.equal(await scalar("select has_function_privilege('anon','ym_api.claim_assistant_budget(uuid,uuid)','execute')"),false);
+ await assert.rejects(db.user(f.owner,()=>db.query('select * from ym_private.assistant_request_windows')),/permission denied/);
+ await db.query("update ym_private.assistant_request_windows set started_at=clock_timestamp()-interval '61 seconds'");
+ assert.equal(await claim(f.cashier),true);
+});
 test('61 deferred balance guard commits authorized cashier/inventory operations without exposing journals', async () => {
  await f.purchase(3); await f.sale(1);
  for (const actor of [f.cashier,f.inventory]) await db.user(actor,async()=>{

@@ -1,5 +1,5 @@
 import { orchestrateBusinessRequest } from "@/lib/ai/orchestrator";
-import { authorizeAssistant } from "@/lib/ai/authorize";
+import { authorizeAssistant, claimAssistantBudget } from "@/lib/ai/authorize";
 import {
   createAssistantHandler,
   createAssistantLimiter,
@@ -12,4 +12,5 @@ export const POST = createAssistantHandler({
   authorize: authorizeAssistant,
   plan: orchestrateBusinessRequest,
   acquire: createAssistantLimiter(),
+  claimBudget: claimAssistantBudget,
 });

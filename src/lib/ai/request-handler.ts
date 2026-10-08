@@ -28,6 +28,12 @@ export interface AssistantDependencies {
   ): Promise<AssistantContext>;
   plan(input: string, signal: AbortSignal): Promise<AssistantPlan>;
   acquire(actor: string): (() => void) | null;
+  claimBudget(
+    token: string,
+    org: string,
+    warehouse: string,
+    signal: AbortSignal,
+  ): Promise<boolean>;
 }
 const reply = (body: unknown, status = 200) =>
   Response.json(body, {
@@ -103,6 +109,8 @@ export function createAssistantHandler(deps: AssistantDependencies) {
       const context = await deps.authorize(token, org, warehouse, signal);
       release = deps.acquire(context.actor) ?? undefined;
       if (!release) return reply({ error: "RATE_LIMITED" }, 429);
+      if (!(await deps.claimBudget(token, org, warehouse, signal)))
+        return reply({ error: "RATE_LIMITED" }, 429);
       const plan = assistantPlanSchema.parse(await deps.plan(input, signal));
       // Recheck membership/role after the model wait, before resolving business data.
       const fresh = await deps.authorize(token, org, warehouse, signal);

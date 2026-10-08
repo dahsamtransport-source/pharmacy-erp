@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createClient, type Session } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
-import { authorizeAssistant } from "@/lib/ai/authorize";
+import { authorizeAssistant, claimAssistantBudget } from "@/lib/ai/authorize";
 import {
   createAssistantHandler,
   createAssistantLimiter,
@@ -46,6 +46,7 @@ function handler(output = plan) {
     authorize: authorizeAssistant,
     plan: async () => output,
     acquire: createAssistantLimiter(),
+    claimBudget: claimAssistantBudget,
   });
 }
 async function employee(role: string) {
@@ -96,6 +97,7 @@ describe.skipIf(!raw)(
           return plan;
         },
         acquire: createAssistantLimiter(),
+        claimBudget: claimAssistantBudget,
       });
       for (const req of [
         request("outsider"),

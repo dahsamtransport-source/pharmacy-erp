@@ -22,6 +22,7 @@ function setup() {
       .mockResolvedValue({ actor: ids.product, workspace, api }),
     plan: vi.fn().mockResolvedValue(plan),
     acquire: createAssistantLimiter(),
+    claimBudget: vi.fn().mockResolvedValue(true),
   };
   return { api, deps, handler: createAssistantHandler(deps) };
 }
@@ -41,6 +42,12 @@ function request(
 }
 afterEach(() => vi.useRealTimers());
 describe("assistant HTTP boundary", () => {
+  it("does not spend model tokens when the shared budget denies admission", async () => {
+    const { deps, handler } = setup();
+    deps.claimBudget.mockResolvedValue(false);
+    expect((await handler(request())).status).toBe(429);
+    expect(deps.plan).not.toHaveBeenCalled();
+  });
   it("authenticates before model spending and rejects a foreign warehouse", async () => {
     const { deps, handler } = setup();
     expect((await handler(request(undefined, ""))).status).toBe(401);

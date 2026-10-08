@@ -37,6 +37,20 @@ const sale=(client,quantity=1,request=uuid(),extra={})=>client.query('select ym_
  [f.org,request,f.warehouse,JSON.stringify(f.cart(quantity)),extra.payment??'cash',extra.customer??null,extra.enrollment??null]);
 const quantity=async()=>Number((await db.query('select sum(quantity) n from ym.batches where org_id=$1',[f.org])).rows[0].n);
 const nativeTest=(name,body)=>test(name,{skip:!native},body);
+nativeTest('C9 simultaneous assistant requests cannot exceed the shared actor budget',async()=>{
+ const claim=c=>c.query('select ym_api.claim_assistant_budget($1,$2) allowed',[f.org,f.warehouse]);
+ for(let i=0;i<5;i++) await db.user(f.cashier,()=>claim(db));
+ const [a,b]=await race(claim,claim);
+ assert.equal(a.rows[0].allowed,true);assert.equal(b.value.rows[0].allowed,false);
+});
+nativeTest('C10 different actors serialize on the last shared global admission',async()=>{
+ await db.exec('delete from ym_private.assistant_request_windows');
+ const claim=c=>c.query('select ym_api.claim_assistant_budget($1,$2) allowed',[f.org,f.warehouse]);
+ for(const actor of [f.owner,f.manager,f.cashier]) for(let i=0;i<6;i++) await db.user(actor,()=>claim(db));
+ await db.user(f.accountant,()=>claim(db));
+ const [a,b]=await race(claim,claim,f.inventory,f.pharmacist);
+ assert.equal(a.rows[0].allowed,true);assert.equal(b.value.rows[0].allowed,false);
+});
 nativeTest('C1 simultaneous sale of the final unit: one commits, one fails, stock never negative',async()=>{
  await f.purchase(1); const [,b]=await race(c=>sale(c),c=>sale(c)); assert.match(b.error.message,/INSUFFICIENT/); assert.equal(await quantity(),0);
 });
