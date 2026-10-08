@@ -2,17 +2,14 @@ import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
 import { readFile, readdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { disposableTarget } from './disposable-target.mjs';
 export const uuid = randomUUID;
 export const native = Boolean(process.env.YMPHARMA_TEST_DATABASE_URL);
 export async function openDatabase() {
   let backend;
   if (native) {
-    const url = new URL(process.env.YMPHARMA_TEST_DATABASE_URL);
-    if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || url.pathname !== '/ympharma_test' || process.env.YMPHARMA_DISPOSABLE_TEST_DB !== 'yes') {
-      throw new Error('Tests require an explicitly disposable localhost /ympharma_test database.');
-    }
     // A stopped/unreachable local container must fail instead of hanging the entire suite.
-    backend = new pg.Client({ connectionString: url.toString(), connectionTimeoutMillis: 10000 });
+    backend = new pg.Client(disposableTarget(process.env.YMPHARMA_TEST_DATABASE_URL, process.env.YMPHARMA_DISPOSABLE_TEST_DB));
     await backend.connect();
   } else backend = new PGlite();
   const safe = async (fn) => { try { return await fn(); } catch(e) { throw new Error(e.message); } };

@@ -214,6 +214,25 @@ test('22 reports agree with posted ledger, COGS and currency', async () => {
   assert.equal(await scalar('select distinct currency from ym_api.income_statement where org_id=$1',[f.org]),'YER');
  });
 });
+test('metadata-only product updates preserve each clinical restriction and sale guards', async () => {
+ await f.purchase();
+ await db.query('update ym.products set requires_prescription=true,controlled=true where org_id=$1',[f.org]);
+ await db.user(f.inventory,()=>db.query("select ym_api.save_product($1,$2,'TEST','Renamed')",[f.org,f.product]));
+ assert.deepEqual((await db.query('select requires_prescription,controlled from ym.products where org_id=$1',[f.org])).rows[0],{requires_prescription:true,controlled:true});
+ await assert.rejects(f.sale(),/CONTROLLED_DRUG_WORKFLOW/);
+ await db.user(f.owner,()=>db.query("select ym_api.save_product($1,$2,'TEST','Renamed',null,false)",[f.org,f.product]));
+ await assert.rejects(f.sale(),/PHARMACIST_REVIEW_REQUIRED/);
+ await db.user(f.inventory,()=>db.query("select ym_private.save_product($1,$2,'TEST','Again')",[f.org,f.product]));
+ await assert.rejects(f.sale(),/PHARMACIST_REVIEW_REQUIRED/);
+ await db.user(f.owner,()=>db.query("select ym_api.save_product($1,$2,'TEST','Again',false)",[f.org,f.product]));
+ await f.sale();
+});
+test('new product defaults and catalog authorization remain unchanged', async () => {
+ const id=uuid();
+ await db.user(f.inventory,()=>db.query("select ym_api.save_product($1,$2,'NEW','New')",[f.org,id]));
+ assert.deepEqual((await db.query('select requires_prescription,controlled from ym.products where org_id=$1 and id=$2',[f.org,id])).rows[0],{requires_prescription:false,controlled:false});
+ for (const actor of [f.cashier,f.outsider]) await assert.rejects(db.user(actor,()=>db.query("select ym_api.save_product($1,$2,'NEW','Denied')",[f.org,id])),/FORBIDDEN/);
+});
 test('23 prescription review is server-stored and basket-bound; controlled drug sales blocked', async () => {
  await f.purchase(); await db.query('update ym.products set requires_prescription=true where org_id=$1',[f.org]);
  const request=uuid(); await assert.rejects(f.sale(1,{request}),/PHARMACIST_REVIEW_REQUIRED/);

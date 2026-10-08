@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, rename, rm } from "node:fs/promises";
+import { mkdir, rename, rm, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import {
   root,
@@ -13,6 +13,7 @@ import {
   writeBrowserEnv,
   assertReset,
   localEnvironment,
+  run,
 } from "./local-support.mjs";
 
 const [command, ...args] = process.argv.slice(2);
@@ -35,15 +36,35 @@ try {
       );
       break;
     case "start":
+    case "start-core":
       await dockerReady();
       await ensureNetwork();
       console.log(
         "Starting isolated local services. First use downloads Docker images; this may take several minutes.",
       );
-      await cli(["start", "--network-id", network], { timeout: 1200000 });
+      await cli(
+        [
+          "start",
+          "--network-id",
+          network,
+          ...(command === "start-core"
+            ? [
+                "--exclude",
+                "realtime,studio,storage-api,imgproxy,postgres-meta,mailpit,edge-runtime,logflare,vector,supavisor",
+              ]
+            : []),
+        ],
+        { timeout: 1200000 },
+      );
+      if (process.platform === "win32")
+        await run(
+          process.execPath,
+          [join(root, "scripts/repair-local-bindings.mjs")],
+          { timeout: 120000 },
+        );
       await status();
       console.log(
-        "Local services are ready. Studio: http://127.0.0.1:54323. Run local:seed once, then local:dev.",
+        `Local ${command === "start-core" ? "Auth/API/database" : "full"} services are ready. Run local:seed once, then local:dev.`,
       );
       break;
     case "stop":
@@ -54,7 +75,7 @@ try {
     case "status":
       await status();
       console.log(
-        "Review stack is running on loopback. API: http://127.0.0.1:54321; Studio: http://127.0.0.1:54323. Keys hidden.",
+        "Review stack is running on loopback. API: http://127.0.0.1:55321; Studio: http://127.0.0.1:55323. Keys hidden.",
       );
       break;
     case "env":
@@ -106,6 +127,11 @@ try {
         [
           join(root, "node_modules/next/dist/bin/next"),
           "dev",
+          // A shared node_modules junction outside the worktree crashes Turbopack.
+          ...((await realpath(join(root, "node_modules"))) !==
+          join(root, "node_modules")
+            ? ["--webpack"]
+            : []),
           "--hostname",
           "127.0.0.1",
         ],
