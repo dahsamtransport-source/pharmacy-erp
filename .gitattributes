@@ -1,0 +1,2 @@
+# Shell scripts must remain runnable in Git Bash, WSL and Linux CI.
+*.sh text eol=lf
